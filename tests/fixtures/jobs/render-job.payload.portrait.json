@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "file": "source/source-rotated-10s.mp4",
+    "durationSeconds": 10,
+    "width": 360,
+    "height": 640,
+    "frameRate": 30,
+    "audioPresent": true
+  },
+  "output": {
+    "file": "output/fixture-portrait-render.mp4",
+    "width": 360,
+    "height": 640,
+    "frameRate": 30
+  },
+  "segments": [
+    {
+      "brollItemId": "br_fix_01",
+      "candidateId": "cand_fix_01a",
+      "startSeconds": 2,
+      "endSeconds": 6,
+      "fit": "contain",
+      "media": {
+        "file": "broll/broll-city-8s.mp4",
+        "durationSeconds": 8,
+        "width": 640,
+        "height": 360
+      }
+    }
+  ]
+}

@@ -1,0 +1,1378 @@
+ALT B-ROLL
+DOCUMENT CENTRAL DE PROJET ET DE COORDINATION
+Version : 1.0
+Date : 18 novembre 2026
+Dossier racine : alt-hol
+Statut : prêt pour démarrage du développement
+Objectif bêta : samedi 21 novembre 2026 au soir
+Marge de sécurité : dimanche 22 novembre 2026 au matin
+
+======================================================================
+0. INSTRUCTIONS DE LECTURE ET RÈGLES GÉNÉRALES
+======================================================================
+
+Ce document est la référence commune du projet ALT B-ROLL. Tous les agents
+de développement doivent le lire intégralement avant de créer ou modifier
+des fichiers.
+
+Les trois agents sont :
+- CLAUDE CODE : responsable du backend, de l'orchestration IA et des API.
+- CODEX : responsable du moteur vidéo, du worker de rendu et de FFmpeg.
+- OPENCODE : responsable de la qualité, des tests, des fixtures, de l'audit
+  technique et de la vérification des intégrations.
+
+Le responsable humain du projet est Alex. Il pilote le produit, réalise
+l'interface frontend, prend les décisions d'arbitrage, intègre les éléments,
+effectue les tests utilisateurs et déploie le frontend.
+
+RÈGLE ABSOLUE : aucun agent ne doit modifier les fichiers attribués à un
+autre agent sans accord explicite d'Alex.
+
+Le présent document est la source de vérité initiale. Si une décision
+technique doit changer, l'agent concerné doit :
+1. expliquer le problème concret ;
+2. proposer la modification ;
+3. indiquer les fichiers et contrats affectés ;
+4. attendre l'accord d'Alex si la modification change le périmètre,
+   l'architecture ou le contrat partagé ;
+5. mettre à jour ce document ou créer une note de décision dans docs/.
+
+Ne pas supposer qu'un fichier existe déjà. Le dossier alt-hol est vide au
+démarrage. Les agents doivent créer uniquement les fichiers de leur périmètre.
+
+Ne pas construire de fonctionnalités hors périmètre pour « faire mieux ».
+Le but est de livrer un parcours complet fonctionnel, pas une architecture
+sur-ingénierée.
+
+======================================================================
+1. VISION DU PRODUIT
+======================================================================
+
+ALT B-ROLL est une application web qui aide un utilisateur à enrichir une
+vidéo avec des plans de coupe (B-rolls) pertinents, sans devoir maîtriser un
+logiciel de montage professionnel.
+
+Le produit ne cherche PAS à remplacer Premiere Pro, DaVinci Resolve ou
+CapCut. Il automatise une tâche précise : repérer les passages d'une vidéo
+qui gagneraient à être illustrés par des plans de coupe, proposer des vidéos
+adaptées, permettre à l'utilisateur de les ajuster, puis exporter le montage.
+
+PROMESSE PRODUIT :
+« Importez votre vidéo. ALT B-ROLL repère les moments à illustrer, propose
+des plans de coupe et prépare un montage que vous pouvez ajuster puis exporter. »
+
+PARCOURS UTILISATEUR CIBLE :
+1. L'utilisateur ouvre ALT B-ROLL.
+2. Il importe une vidéo MP4.
+3. Le système valide le fichier et extrait les informations techniques.
+4. Le système transcrit l'audio.
+5. Le système analyse le contenu parlé et des images représentatives.
+6. L'IA identifie les passages où un B-roll serait utile.
+7. Le système recherche des vidéos correspondantes dans une banque média.
+8. L'utilisateur consulte les suggestions et leurs alternatives.
+9. Il accepte, refuse, remplace, déplace ou ajuste les B-rolls.
+10. Il prévisualise le résultat.
+11. Il lance l'export.
+12. Il télécharge un MP4 final avec l'audio original conservé.
+
+Le parcours doit fonctionner de bout en bout, même si certaines étapes
+utilisent des solutions simples dans cette première version.
+
+======================================================================
+2. OBJECTIF ET CONTRAINTES DE LA BÊTA
+======================================================================
+
+DATE CIBLE :
+- Samedi 21 novembre 2026 au soir : ouverture de la bêta.
+- Dimanche 22 novembre au matin : marge de sécurité en cas de blocage.
+
+PUBLIC :
+- Maximum 10 testeurs au lancement.
+- Utilisation contrôlée, quelques vidéos par semaine.
+- Pas de promesse de service public illimité ou gratuit.
+
+LIMITES INITIALES RECOMMANDÉES :
+- Formats acceptés : MP4 en priorité.
+- Durée vidéo : 1 à 3 minutes pour la bêta.
+- Taille maximale : 150 Mo, configurable côté serveur.
+- Langue prioritaire : français.
+- Suggestions : 3 à 8 B-rolls pertinents par vidéo.
+- Une vidéo source par projet.
+- Une piste vidéo source et une piste de B-rolls.
+- Un rendu simultané sur le worker bêta.
+- Export 720p ou 1080p selon la source et les capacités disponibles.
+- Un projet actif par utilisateur au lancement.
+- Pas de génération vidéo par IA.
+
+Ces limites doivent être validées et appliquées côté backend. Le frontend
+peut afficher les règles, mais ne constitue jamais la seule protection.
+
+PRINCIPE DE PRIORITÉ :
+Un export MP4 réellement fonctionnel vaut davantage que dix fonctionnalités
+visuelles inachevées.
+
+======================================================================
+3. PÉRIMÈTRE FONCTIONNEL V1
+======================================================================
+
+INCLUS :
+- Import d'une vidéo MP4.
+- Validation de la vidéo avec ffprobe.
+- Extraction audio.
+- Transcription avec Groq Whisper.
+- Extraction d'images représentatives.
+- Analyse du contenu avec un modèle compatible vision via OpenRouter.
+- Identification des passages utiles pour un B-roll.
+- Recherche de vidéos B-roll sur Pixabay.
+- Préchargement de plusieurs candidats par suggestion.
+- Prévisualisation du montage.
+- Acceptation/refus/remplacement d'un candidat.
+- Ajustement du début, de la durée et du mode d'affichage du B-roll.
+- Sauvegarde d'une timeline sous forme de JSON.
+- Export MP4 avec conservation de l'audio original.
+- Suivi de l'état de l'analyse et du rendu.
+- Téléchargement sécurisé du résultat.
+
+EXCLUS :
+- Génération de B-rolls par IA.
+- Montage multipiste avancé.
+- Sous-titres avancés.
+- Transitions complexes.
+- Étalonnage ou mixage audio professionnel.
+- Montage collaboratif en temps réel.
+- Application mobile native.
+- Paiement, abonnement et facturation.
+- Gestion avancée de comptes et d'équipes.
+- Bibliothèque média personnelle permanente.
+- Export de multiples formats avancés.
+- Remplacement complet d'un logiciel de montage.
+- Intégration obligatoire de Pexels si Pixabay suffit.
+- Intégration obligatoire d'HyperFrames avant un premier export FFmpeg réussi.
+
+======================================================================
+4. ARCHITECTURE TECHNIQUE RETENUE
+======================================================================
+
+FRONTEND :
+- HTML, CSS et JavaScript.
+- Interface dans un fichier HTML autonome autant que possible.
+- Lecteur vidéo HTML5.
+- Timeline simplifiée.
+- Deux éléments vidéo HTML5 peuvent être utilisés pour la prévisualisation :
+  vidéo source et vidéo B-roll.
+- Hébergement : Firebase Hosting.
+- Le frontend appelle le backend via une URL configurable.
+
+BACKEND :
+- Node.js avec TypeScript.
+- Express ou Fastify. Claude choisit une seule option et la documente.
+- API REST.
+- SQLite comme source de vérité pour les projets, tâches et statuts.
+- Stockage des fichiers sur le disque local du serveur bêta.
+- Orchestration des étapes d'analyse.
+- Appels Groq, OpenRouter et Pixabay.
+- Communication avec le worker de rendu.
+
+WORKER :
+- Processus Node.js séparé du serveur API.
+- Même machine et même espace disque que le backend pour la bêta.
+- Récupération atomique des tâches dans SQLite.
+- Un seul rendu simultané.
+- Exécution FFmpeg.
+- Mise à jour des statuts et erreurs.
+- Vérification du fichier final avant de déclarer le rendu terminé.
+
+TRAITEMENT VIDÉO :
+- FFmpeg et ffprobe.
+- FFmpeg natif est le moteur obligatoire de la V1.
+- HyperFrames peut être étudié après obtention d'un premier export fonctionnel.
+- Ne pas développer deux moteurs de rendu en parallèle.
+
+SERVICES IA ET MÉDIAS :
+- Groq : transcription audio, modèle whisper-large-v3-turbo.
+- OpenRouter : analyse textuelle et visuelle, avec modèle réellement compatible
+  avec les images.
+- Pixabay : recherche de vidéos B-roll.
+- Pexels : option secondaire, uniquement si le temps et les conditions le
+  permettent.
+
+STOCKAGE :
+- Dossier local isolé par projet.
+- SQLite pour les données et les tâches.
+- Le JSON de montage est la référence du montage.
+- Ne pas utiliser Firestore et des JSON locaux comme deux sources de vérité.
+- Ne pas ajouter Redis pour cette bêta.
+- Ne pas utiliser GitHub Actions comme infrastructure de rendu utilisateur.
+- Ne pas dépendre de Firebase Storage pour le traitement vidéo de la bêta.
+
+DÉPLOIEMENT :
+- Frontend sur Firebase Hosting.
+- Backend et worker sur une même machine contrôlée par Alex pour la bêta.
+- L'architecture doit rester simple à lancer et à diagnostiquer.
+- Ne pas supposer qu'un service Firebase ou Cloud Run est disponible sans
+  configuration de facturation et vérification des quotas.
+
+======================================================================
+5. ORGANISATION DU DOSSIER
+======================================================================
+
+Le dossier racine est : alt-hol/
+
+Arborescence cible indicative :
+
+alt-hol/
+  README.md
+  PROJECT_MASTER.txt
+  .gitignore
+  .env.example
+
+  shared/
+    contract.ts
+    README.md
+
+  frontend/
+    index.html
+    README.md
+
+  backend/
+    package.json
+    tsconfig.json
+    src/
+      server.ts
+      app.ts
+      config/
+        env.ts
+      routes/
+        projects.routes.ts
+        media.routes.ts
+        render.routes.ts
+      services/
+        project.service.ts
+        upload.service.ts
+        transcription.service.ts
+        keyframes.service.ts
+        vision-analysis.service.ts
+        broll-search.service.ts
+        timeline.service.ts
+      providers/
+        groq.provider.ts
+        openrouter.provider.ts
+        pixabay.provider.ts
+      repositories/
+        project.repository.ts
+        job.repository.ts
+      storage/
+        local-storage.ts
+      utils/
+        errors.ts
+        validation.ts
+    data/
+      .gitkeep
+
+  renderer/
+    package.json
+    tsconfig.json
+    src/
+      worker.ts
+      job-runner.ts
+      render.service.ts
+      ffmpeg/
+        probe.ts
+        command-builder.ts
+        validation.ts
+      utils/
+        paths.ts
+    README.md
+
+  tests/
+    fixtures/
+      README.md
+    contract/
+    integration/
+    security/
+    renderer/
+    reports/
+
+  docs/
+    ARCHITECTURE.md
+    API.md
+    DECISIONS.md
+    TEST_PLAN.md
+    RUN_LOCAL.md
+
+Cette arborescence est une cible, pas une obligation de créer immédiatement
+tous les fichiers. Chaque agent crée les fichiers nécessaires à son périmètre.
+Ne pas générer des fichiers vides sans utilité.
+
+RÉPARTITION DES DOSSIERS :
+- shared/ : contrat commun, validé par Alex.
+- backend/ : Claude Code.
+- renderer/ : Codex.
+- tests/, fixtures/, rapports QA : OpenCode.
+- frontend/ : Alex.
+- docs/ : chaque agent peut proposer une documentation dans son périmètre,
+  mais Alex arbitre les documents communs.
+
+======================================================================
+6. CONTRAT COMMUN ET SOURCE DE VÉRITÉ
+======================================================================
+
+Avant le développement parallèle, le contrat de données doit être créé dans :
+shared/contract.ts
+
+Alex est propriétaire de ce fichier et valide sa version initiale.
+Claude, Codex et OpenCode doivent le lire et s'y conformer.
+
+RÈGLES DU CONTRAT :
+- Ajouter schemaVersion.
+- Ajouter revision pour identifier les versions du montage.
+- Séparer le statut de l'analyse et celui du rendu.
+- Les erreurs doivent être structurées : code, stage, message.
+- Le JSON du projet et de la timeline est la source de vérité du montage.
+- Ne pas dupliquer les mêmes données dans plusieurs propriétés.
+- Les candidats B-roll sont stockés dans candidates[].
+- Le candidat actif est identifié par selectedCandidateId.
+- Le backend et le renderer ne doivent pas inventer chacun leur propre format.
+- Toute modification du contrat doit être annoncée et validée avant intégration.
+
+STRUCTURE CONCEPTUELLE ATTENDUE :
+
+Project :
+- id
+- schemaVersion
+- revision
+- createdAt
+- updatedAt
+- source
+- transcript
+- analysis
+- brollItems
+- timeline
+- render
+- errors
+
+Source :
+- originalName
+- storedFileName
+- mimeType
+- sizeBytes
+- durationSeconds
+- width
+- height
+- frameRate
+- audioPresent
+
+Transcript :
+- language
+- text
+- segments[]
+- words[] si disponibles
+
+Analysis :
+- status indépendant du rendu
+- model
+- visualAnalysisAvailable
+- keyframes[]
+- summary
+- suggestions[]
+
+BrollItem :
+- id
+- startSeconds
+- endSeconds
+- reason
+- searchQuery
+- candidates[]
+- selectedCandidateId
+- status
+- fit
+- enabled
+
+BrollCandidate :
+- id
+- provider
+- providerMediaId
+- title
+- previewUrl
+- downloadUrl ou URL média exploitable selon les conditions du fournisseur
+- sourcePageUrl
+- durationSeconds
+- width
+- height
+- thumbnailUrl
+- attribution si nécessaire
+
+Render :
+- status indépendant de l'analyse
+- jobId
+- progress
+- outputFile
+- startedAt
+- completedAt
+- error
+
+Les noms et types exacts doivent être définis dans contract.ts. Cette liste
+est le modèle fonctionnel attendu, pas une permission de créer des champs
+inutiles.
+
+STATUTS :
+Les statuts d'analyse et de rendu doivent être indépendants.
+Exemple analyse : idle, queued, processing, completed, failed.
+Exemple rendu : idle, queued, rendering, completed, failed.
+Les statuts upload/projet peuvent être gérés séparément si nécessaire.
+
+ERREURS :
+Chaque erreur doit fournir au minimum :
+- code stable exploitable par le frontend ;
+- stage concerné ;
+- message lisible ;
+- détail technique côté logs si nécessaire.
+Ne jamais exposer une clé API, un chemin serveur sensible ou une stack trace
+au navigateur.
+
+======================================================================
+7. RESPONSABILITÉS DÉTAILLÉES : CLAUDE CODE
+======================================================================
+
+RÔLE :
+Claude Code est le responsable du BACKEND, des API, de l'orchestration IA
+et de la logique métier du projet.
+
+Claude ne doit pas modifier frontend/index.html ni renderer/ sans accord
+explicite d'Alex.
+
+OBJECTIF :
+Livrer un backend exécutable qui reçoit une vidéo, la valide, orchestre
+l'analyse, recherche les B-rolls, expose les données au frontend et transmet
+les demandes de rendu au worker.
+
+FICHIERS À CRÉER OU GÉRER :
+
+backend/package.json
+backend/tsconfig.json
+backend/src/server.ts
+backend/src/app.ts
+backend/src/config/env.ts
+
+backend/src/routes/projects.routes.ts
+backend/src/routes/media.routes.ts
+backend/src/routes/render.routes.ts
+
+backend/src/services/project.service.ts
+backend/src/services/upload.service.ts
+backend/src/services/transcription.service.ts
+backend/src/services/keyframes.service.ts
+backend/src/services/vision-analysis.service.ts
+backend/src/services/broll-search.service.ts
+backend/src/services/timeline.service.ts
+
+backend/src/providers/groq.provider.ts
+backend/src/providers/openrouter.provider.ts
+backend/src/providers/pixabay.provider.ts
+
+backend/src/repositories/project.repository.ts
+backend/src/repositories/job.repository.ts
+
+backend/src/storage/local-storage.ts
+backend/src/utils/errors.ts
+backend/src/utils/validation.ts
+
+Claude peut ajuster cette liste si l'architecture le justifie, mais doit
+expliquer les changements et garder des modules lisibles.
+
+TÂCHES CLAUDE, DANS CET ORDRE :
+
+A. INITIALISATION
+- Lire PROJECT_MASTER.txt.
+- Lire shared/contract.ts dès qu'il est créé.
+- Initialiser le backend TypeScript.
+- Créer une configuration d'environnement validée au démarrage.
+- Créer .env.example sans aucune vraie clé.
+- Mettre en place les logs et les erreurs structurées.
+- Préparer les scripts npm : dev, build, start, typecheck.
+
+B. STOCKAGE ET PROJETS
+- Créer SQLite et les tables nécessaires.
+- Créer un repository de projets et de jobs.
+- Créer un dossier isolé par projet.
+- Générer les noms de fichiers côté serveur.
+- Empêcher les traversées de chemin (path traversal).
+- Ne jamais accepter un chemin arbitraire fourni par le client.
+- Prévoir une suppression/nettoyage des fichiers temporaires.
+- Conserver les métadonnées et le JSON du projet de manière cohérente.
+
+C. IMPORT ET VALIDATION
+- Implémenter la création de projet.
+- Implémenter l'upload MP4.
+- Valider extension, MIME réel, taille et durée.
+- Utiliser ffprobe pour vérifier le fichier réel.
+- Détecter résolution, frame rate, durée et présence audio.
+- Rejeter proprement les fichiers invalides.
+- Limiter la taille et la durée côté serveur.
+- Prévoir une gestion des uploads interrompus ou échoués.
+
+D. TRANSCRIPTION GROQ
+- Extraire l'audio avec FFmpeg en mono 16 kHz, MP3 64 kbps ou format
+  compatible confirmé par l'API.
+- Utiliser Groq Whisper whisper-large-v3-turbo.
+- Demander verbose_json et les timestamps de segments/mots quand disponibles.
+- Gérer les limites de taille et segmenter l'audio si nécessaire.
+- Normaliser le résultat vers shared/contract.ts.
+- Gérer les erreurs, quotas, délais et réponses invalides.
+- Ne jamais inventer une transcription si l'API échoue.
+
+E. EXTRACTION DES IMAGES
+- Extraire des images représentatives.
+- Priorité aux changements de scène si une méthode fiable est disponible.
+- Sélectionner jusqu'à 12 images.
+- Assembler une planche contact 4 colonnes x 3 lignes.
+- Afficher le timestamp sur chaque vignette.
+- Conserver les timestamps associés aux images.
+- Ne pas envoyer une quantité excessive d'images à l'API vision.
+- Si l'extraction échoue, signaler une analyse visuelle indisponible.
+
+F. ANALYSE OPENROUTER
+- Vérifier que le modèle choisi accepte réellement les images.
+- Ne pas supposer que le modèle gratuit du jour supporte la vision.
+- Envoyer la transcription et la planche contact.
+- Demander une réponse JSON structurée et validée.
+- Identifier les passages qui bénéficieraient d'un B-roll.
+- Identifier les passages qui n'en ont pas besoin.
+- Générer des mots-clés de recherche en anglais.
+- Fournir une raison concise en français.
+- Produire un début et une fin cohérents avec la durée de la vidéo.
+- Éviter les suggestions redondantes ou trop nombreuses.
+- Prévoir une solution de repli textuelle si la vision est indisponible.
+- Dans ce cas, visualAnalysisAvailable doit être false.
+- Ne jamais prétendre avoir analysé visuellement une image qui n'a pas été
+  traitée par un modèle vision.
+
+G. RECHERCHE PIXABAY
+- Utiliser l'API Pixabay.
+- Rechercher des vidéos adaptées aux mots-clés.
+- Précharger jusqu'à 4 candidats par suggestion.
+- Conserver les informations de provenance et la page source.
+- Filtrer si possible par durée, résolution et orientation.
+- Vérifier que les URL utilisées sont exploitables pour le rendu.
+- Ne pas exposer la clé Pixabay au frontend.
+- Respecter les conditions d'utilisation, les quotas et les règles de cache.
+- Ne pas lancer des recherches répétées inutiles.
+- Pexels est optionnel et ne doit pas retarder le parcours principal.
+
+H. API
+Les endpoints de référence sont :
+
+POST /api/projects
+Crée un projet.
+
+POST /api/projects/:id/upload
+Reçoit la vidéo source.
+
+POST /api/projects/:id/analyze
+Démarre l'analyse du projet.
+
+GET /api/projects/:id
+Retourne le projet et ses données utiles.
+
+GET /api/projects/:id/status
+Retourne l'état de l'analyse et les erreurs éventuelles.
+
+GET /api/projects/:id/suggestions
+Retourne les suggestions B-roll et leurs candidats.
+
+PATCH /api/projects/:id/timeline
+Met à jour les choix et les paramètres de timeline.
+
+POST /api/projects/:id/render
+Crée une tâche de rendu.
+
+GET /api/projects/:id/render/status
+Retourne l'état et la progression du rendu.
+
+GET /api/projects/:id/download
+Permet de télécharger le fichier final après vérification des droits.
+
+Claude peut ajouter des endpoints nécessaires, mais doit documenter les
+contrats request/response dans docs/API.md.
+
+I. COMMUNICATION AVEC LE WORKER
+- Écrire les jobs de rendu dans SQLite.
+- Ne pas exécuter un rendu lourd dans le processus HTTP.
+- Le worker doit pouvoir récupérer la tâche de manière atomique.
+- Éviter deux workers qui prennent le même job.
+- Prévoir un statut et un verrou/lease de tâche.
+- Le backend et le worker partagent le même disque local.
+- Le worker reçoit un identifiant de projet/job, jamais un chemin arbitraire.
+
+J. LIVRABLES CLAUDE
+- Backend qui démarre localement.
+- Schéma SQLite initialisé automatiquement.
+- Endpoints documentés.
+- .env.example.
+- Instructions de lancement.
+- Tests de base sur validation, erreurs et endpoints critiques.
+- Exemple de réponse JSON conforme au contrat.
+- Liste des variables d'environnement.
+- Rapport final indiquant ce qui fonctionne réellement, ce qui est simulé
+  et ce qui reste à faire.
+
+CRITÈRES D'ACCEPTATION CLAUDE :
+- Le serveur démarre sans erreur.
+- Une vidéo valide peut être créée et uploadée.
+- Une vidéo invalide est rejetée proprement.
+- Le statut du projet est consultable.
+- L'analyse peut être déclenchée et suivie.
+- Les suggestions et candidats sont renvoyés au frontend.
+- La timeline peut être sauvegardée.
+- Une demande de rendu crée un job durable.
+- Les clés et chemins internes restent protégés.
+- Les erreurs sont compréhensibles et structurées.
+
+======================================================================
+8. RESPONSABILITÉS DÉTAILLÉES : CODEX
+======================================================================
+
+RÔLE :
+Codex est responsable du MOTEUR VIDÉO, du worker de rendu, de FFmpeg et
+de la validation technique du fichier exporté.
+
+Codex ne doit pas modifier backend/ ni frontend/ sans accord explicite.
+Il doit se conformer à shared/contract.ts et au mécanisme de jobs défini
+avec Claude.
+
+OBJECTIF :
+À partir d'une vidéo source et d'une timeline contenant les B-rolls retenus,
+produire un MP4 final qui affiche les B-rolls aux bons moments et conserve
+l'audio original.
+
+FICHIERS À CRÉER OU GÉRER :
+
+renderer/package.json
+renderer/tsconfig.json
+renderer/src/worker.ts
+renderer/src/job-runner.ts
+renderer/src/render.service.ts
+renderer/src/ffmpeg/probe.ts
+renderer/src/ffmpeg/command-builder.ts
+renderer/src/ffmpeg/validation.ts
+renderer/src/utils/paths.ts
+renderer/README.md
+
+Codex peut adapter cette structure, mais doit garder le moteur isolé.
+
+TÂCHES CODEX, DANS CET ORDRE :
+
+A. PRISE EN MAIN
+- Lire PROJECT_MASTER.txt.
+- Lire shared/contract.ts.
+- Se coordonner avec Claude sur le format des jobs et l'emplacement des
+  fichiers.
+- Créer un README indiquant les prérequis FFmpeg et les commandes.
+
+B. FFPROBE
+- Implémenter la lecture des métadonnées source.
+- Détecter durée, dimensions, frame rate, codecs et audio.
+- Gérer les vidéos sans piste audio.
+- Retourner des erreurs structurées.
+
+C. WORKER
+- Créer un processus Node séparé.
+- Lire les jobs en attente dans SQLite selon le contrat commun.
+- Prendre un job de manière atomique.
+- Garantir un seul rendu simultané dans la bêta.
+- Actualiser le statut et la progression.
+- En cas de crash, permettre de détecter un job bloqué.
+- Ne jamais prendre deux fois le même job.
+- Ne pas lancer de rendu depuis une route HTTP.
+
+D. MOTEUR FFmpeg
+- Priorité absolue : FFmpeg natif.
+- Construire une commande de rendu reproductible.
+- Utiliser la vidéo source comme base.
+- Insérer les B-rolls aux intervalles définis.
+- Respecter startSeconds et endSeconds.
+- Respecter le fit demandé : contain, cover ou équivalent convenu.
+- Gérer le scale/crop/pad.
+- Conserver l'audio original de la vidéo source.
+- Ne pas prendre l'audio des vidéos B-roll, sauf décision explicite future.
+- Gérer les B-rolls désactivés ou refusés.
+- Gérer les intervalles qui se chevauchent selon une règle documentée.
+- Normaliser les dimensions et le frame rate de sortie.
+- Prévoir un encodage H.264/AAC compatible avec les lecteurs courants.
+- Produire un MP4 lisible et correctement finalisé.
+- Éviter de charger inutilement tous les médias en mémoire.
+
+E. SYNCHRONISATION
+- La prévisualisation frontend et le rendu final doivent utiliser les mêmes
+  timestamps, durées, choix de candidats et paramètres de cadrage.
+- La précision temporelle est limitée par les frames.
+- À 30 FPS, une frame représente environ 33,3 ms.
+- Aligner les timestamps sur les frames lorsque nécessaire.
+- Documenter toute différence connue entre preview et export.
+
+F. VALIDATION DE SORTIE
+- Vérifier le fichier final avec ffprobe.
+- Vérifier qu'il existe et qu'il a une taille non nulle.
+- Vérifier sa durée et ses pistes vidéo/audio.
+- Ne déclarer completed qu'après validation réussie.
+- En cas d'échec, enregistrer une erreur exploitable.
+- Nettoyer les fichiers temporaires sans supprimer les fichiers source.
+
+G. HYPERFRAMES
+- HyperFrames est facultatif.
+- Ne pas commencer par développer une intégration HyperFrames complète.
+- Le premier objectif est un export FFmpeg natif réussi.
+- Après cela seulement, évaluer si HyperFrames apporte une valeur immédiate.
+- Ne pas bloquer la bêta sur cette intégration.
+
+H. LIVRABLES CODEX
+- Worker exécutable.
+- Moteur FFmpeg.
+- Génération d'un MP4 final.
+- Validation ffprobe du MP4.
+- Tests de rendu sur fixtures.
+- Instructions d'installation et de lancement.
+- Exemple de job accepté.
+- Rapport de limites et de comportements connus.
+
+CRITÈRES D'ACCEPTATION CODEX :
+- Un job de rendu peut être pris par le worker.
+- Le worker produit un MP4 valide à partir d'une fixture.
+- Les B-rolls apparaissent aux bons moments.
+- Le cadrage est respecté.
+- L'audio original est conservé.
+- Le fichier final est vérifié.
+- Les erreurs de rendu ne bloquent pas définitivement le worker.
+- Le statut final est correctement enregistré.
+
+======================================================================
+9. RESPONSABILITÉS DÉTAILLÉES : OPENCODE
+======================================================================
+
+RÔLE :
+OpenCode est le responsable QA, tests, fixtures, audit et contrôle de
+cohérence entre les composants.
+
+OpenCode n'est pas un troisième développeur qui réécrit le backend ou le
+renderer. Il doit rendre le travail des deux autres agents vérifiable et
+détecter tôt les problèmes d'intégration.
+
+Il ne doit pas modifier backend/ ou renderer/ directement sans demande
+explicite d'Alex. Il peut créer les fichiers de tests et de documentation
+dans tests/ et docs/ selon les règles ci-dessous.
+
+OBJECTIF :
+Fournir rapidement un environnement de test reproductible, vérifier que
+les composants respectent le contrat commun et signaler les défauts avant
+l'intégration finale.
+
+FICHIERS À CRÉER OU GÉRER :
+
+tests/fixtures/README.md
+tests/contract/
+tests/integration/
+tests/security/
+tests/renderer/
+tests/reports/
+docs/TEST_PLAN.md
+docs/RUN_LOCAL.md si Alex le lui demande
+
+TÂCHES OPENCODE, DANS CET ORDRE :
+
+A. LECTURE ET CARTOGRAPHIE
+- Lire PROJECT_MASTER.txt.
+- Lire shared/contract.ts.
+- Lire les README des autres composants.
+- Produire une courte cartographie des dépendances et des points de
+  synchronisation.
+- Identifier les incohérences entre les contrats backend et renderer.
+
+B. FIXTURES
+- Préparer une petite vidéo MP4 de test d'environ 30 secondes.
+- Elle doit être légère et utilisable en local.
+- Si possible, inclure une piste audio.
+- Préparer un projet JSON de test conforme au contrat.
+- Préparer plusieurs B-rolls de test locaux ou des médias de test autorisés.
+- Les tests doivent fonctionner sans appeler Groq, OpenRouter ou Pixabay.
+- Documenter précisément la provenance et les conditions d'utilisation
+  des médias de test.
+- Ne pas télécharger ou redistribuer de médias sans droit approprié.
+- Si aucune vidéo ne peut être fournie, documenter une commande FFmpeg
+  permettant de générer une fixture synthétique.
+
+C. TESTS DE CONTRAT
+- Vérifier que les objets projet respectent shared/contract.ts.
+- Vérifier les statuts et transitions.
+- Vérifier les champs obligatoires.
+- Vérifier la sélection d'un candidat.
+- Vérifier que les révisions sont cohérentes.
+- Détecter les champs divergents entre backend et renderer.
+
+D. TESTS FONCTIONNELS
+- Upload valide.
+- Upload invalide.
+- Fichier trop volumineux.
+- Fichier trop long.
+- Vidéo sans audio.
+- Projet introuvable.
+- Analyse échouée.
+- Recherche média sans résultat.
+- Timeline modifiée.
+- Candidat remplacé.
+- Rendu réussi.
+- Rendu échoué.
+- Téléchargement du résultat.
+- Vérifier que le rendu conserve l'audio original.
+
+E. AUDIT SÉCURITÉ
+- Traversée de chemin.
+- Nom de fichier malveillant.
+- Accès à un projet inexistant ou non autorisé.
+- Upload avec extension trompeuse.
+- MIME incohérent.
+- Fichier corrompu.
+- URL média invalide.
+- Exposition accidentelle des clés API.
+- Exposition des chemins serveur.
+- Téléchargement d'un fichier qui n'appartient pas au projet.
+- Vérifier que le frontend ne peut pas choisir un chemin arbitraire.
+
+F. AUDIT UX ET INTÉGRATION
+- Vérifier les états de chargement.
+- Vérifier les erreurs compréhensibles.
+- Vérifier que les états backend correspondent à ce que le frontend affiche.
+- Vérifier les transitions analyse -> suggestions -> édition -> rendu.
+- Identifier les problèmes de synchronisation preview/export.
+- Vérifier qu'un remplacement de candidat n'entraîne pas de duplication.
+- Vérifier les comportements en cas de perte réseau.
+
+G. RAPPORTS
+Chaque problème doit inclure :
+- identifiant ;
+- gravité : bloquant, majeur, mineur, cosmétique ;
+- étape de reproduction ;
+- résultat attendu ;
+- résultat obtenu ;
+- fichier ou composant concerné ;
+- recommandation concrète.
+
+OpenCode doit produire un rapport court et priorisé, pas une liste de
+suggestions abstraites.
+
+CRITÈRES D'ACCEPTATION OPENCODE :
+- Une fixture de test reproductible existe.
+- Un JSON de projet conforme existe.
+- Les tests de contrat sont exécutables.
+- Les tests de rendu peuvent tourner sans services IA externes.
+- Les problèmes bloquants sont signalés immédiatement.
+- Les rapports distinguent les bugs réels des améliorations facultatives.
+
+======================================================================
+10. RESPONSABILITÉS D'ALEX
+======================================================================
+
+Alex est responsable du produit, de l'interface, de l'intégration et de
+l'arbitrage final.
+
+PÉRIMÈTRE ALEX :
+- Créer et maintenir frontend/index.html.
+- Développer le design et l'expérience utilisateur.
+- Gérer le lecteur vidéo et la timeline simplifiée.
+- Connecter le frontend aux endpoints backend.
+- Configurer Firebase Hosting.
+- Créer shared/contract.ts avec validation des propositions des agents.
+- Fournir les clés API dans son environnement local, jamais dans Git.
+- Tester le parcours utilisateur réel.
+- Déployer et ouvrir la bêta.
+- Décider des arbitrages de périmètre.
+
+INTERFACE V1 :
+- Écran d'import.
+- État d'analyse et progression.
+- Lecteur vidéo source.
+- Liste des suggestions B-roll.
+- Liste des candidats alternatifs.
+- Actions accepter/refuser/remplacer.
+- Contrôles simples de début/durée/cadrage.
+- Timeline simplifiée.
+- Prévisualisation.
+- Bouton d'export.
+- Progression du rendu.
+- Bouton de téléchargement final.
+- Gestion des erreurs.
+
+PRÉVISUALISATION :
+- Le lecteur source reste la référence temporelle.
+- Le B-roll doit apparaître uniquement dans son intervalle.
+- Attendre loadedmetadata avant de positionner currentTime sur le média B-roll.
+- Gérer le changement de source, le seek, la pause et la reprise.
+- Gérer les erreurs de lecture et le rejet éventuel de play().
+- Précharger le média B-roll sélectionné si possible.
+- Ne pas utiliser uniquement timeupdate pour une synchronisation précise.
+- Utiliser requestAnimationFrame ou un mécanisme équivalent contrôlé par
+  l'état du lecteur.
+- Éviter les flashes noirs lors du changement de B-roll.
+- La preview doit refléter les mêmes paramètres que le rendu final.
+
+Alex ne doit pas passer trop de temps sur les animations ou détails décoratifs
+avant que le parcours d'import, d'analyse et d'export soit fonctionnel.
+
+======================================================================
+11. RÈGLES DE COLLABORATION ENTRE LES AGENTS
+======================================================================
+
+RÈGLE 1 : UN PROPRIÉTAIRE PAR DOSSIER
+- Claude : backend/
+- Codex : renderer/
+- OpenCode : tests/ et rapports QA
+- Alex : frontend/ et shared/contract.ts
+- docs/ : contribution possible, mais pas de réécriture concurrente.
+
+RÈGLE 2 : CONTRAT AVANT INTÉGRATION
+Les agents doivent se baser sur shared/contract.ts. Si le contrat ne permet
+pas de faire leur travail, ils proposent une modification avant de l'appliquer.
+
+RÈGLE 3 : PAS DE MODIFICATION CROISÉE
+Un agent ne modifie pas le code d'un autre agent pour « corriger rapidement ».
+Il ouvre un rapport avec le fichier, le problème et la correction suggérée.
+
+RÈGLE 4 : PAS DE MOCKS PRÉSENTÉS COMME DU RÉEL
+Les données simulées sont autorisées pendant le développement, mais elles
+doivent être identifiées explicitement comme fixtures ou mocks.
+Aucune réponse simulée ne doit être présentée comme une vraie analyse IA,
+une vraie recherche Pixabay ou un vrai rendu.
+
+RÈGLE 5 : PAS DE CLÉS DANS LE CODE
+- Aucune clé API dans le frontend.
+- Aucune clé API dans Git.
+- Utiliser .env local et .env.example sans valeur secrète.
+- Ajouter .env, fichiers médias privés, bases locales et rendus au .gitignore.
+
+RÈGLE 6 : RAPPORT DE FIN DE SESSION
+Chaque agent termine sa session par un compte rendu :
+- fichiers créés ;
+- fichiers modifiés ;
+- fonctionnalités réellement terminées ;
+- commandes de test exécutées ;
+- tests réussis/échoués ;
+- blocages ;
+- décisions demandées à Alex ;
+- prochaine tâche recommandée.
+
+RÈGLE 7 : PAS DE SUR-INGÉNIERIE
+Ne pas ajouter Redis, microservices supplémentaires, Kubernetes, système
+d'authentification complexe ou architecture cloud distribuée pour la bêta.
+
+RÈGLE 8 : LES ERREURS DOIVENT ÊTRE VISIBLES
+Ne pas masquer une erreur en renvoyant une réponse de succès vide.
+Le frontend doit pouvoir distinguer : en attente, en cours, terminé, échoué.
+
+RÈGLE 9 : UNE SOURCE DE VÉRITÉ
+SQLite contient les métadonnées et les jobs. Le disque contient les fichiers.
+Le JSON de projet/timeline contient l'état du montage. Éviter les doublons
+et les synchronisations concurrentes inutiles.
+
+RÈGLE 10 : PRIORITÉ À L'INTÉGRATION
+Un composant terminé mais impossible à connecter aux autres n'est pas
+considéré comme terminé.
+
+======================================================================
+12. SÉCURITÉ ET ROBUSTESSE MINIMALES
+======================================================================
+
+- Valider les fichiers uploadés côté serveur.
+- Utiliser ffprobe et ne pas se fier uniquement au nom ou au MIME annoncé.
+- Limiter taille, durée et types de fichiers.
+- Générer les noms de stockage côté serveur.
+- Isoler les fichiers par projet.
+- Ne jamais concaténer directement un chemin client à un chemin serveur.
+- Empêcher path traversal.
+- Contrôler l'accès aux projets et aux téléchargements.
+- Ne pas exposer les clés Groq, OpenRouter ou Pixabay.
+- Ne pas exposer les chemins absolus du serveur.
+- Ne pas accepter de commandes FFmpeg arbitraires depuis le frontend.
+- Construire les arguments FFmpeg de manière sûre, sans shell injection.
+- Vérifier les URL distantes avant de les télécharger.
+- Limiter les téléchargements distants et les durées de traitement.
+- Nettoyer les fichiers temporaires.
+- Gérer les timeouts et les quotas API.
+- Ne pas considérer un fichier final comme valide sans vérification ffprobe.
+- Journaliser les erreurs sans enregistrer de secrets.
+
+La bêta peut rester simple, mais ne doit pas être dangereuse pour la machine
+qui héberge le backend.
+
+======================================================================
+13. PIPELINE TECHNIQUE DÉTAILLÉ
+======================================================================
+
+ÉTAPE 1 : UPLOAD
+- Créer le projet.
+- Recevoir le MP4.
+- Valider le fichier avec ffprobe.
+- Enregistrer les métadonnées.
+- Placer le fichier dans le dossier isolé du projet.
+
+ÉTAPE 2 : EXTRACTION AUDIO
+- Extraire l'audio en mono 16 kHz.
+- Utiliser un format compatible avec Groq.
+- Segmenter si les limites API l'exigent.
+
+ÉTAPE 3 : TRANSCRIPTION
+- Appeler Groq Whisper.
+- Récupérer le texte et les timestamps.
+- Normaliser le résultat.
+- Enregistrer la transcription.
+
+ÉTAPE 4 : EXTRACTION VISUELLE
+- Repérer les changements de scène si possible.
+- Extraire jusqu'à 12 images représentatives.
+- Créer une planche contact 4x3.
+- Associer chaque vignette à son timestamp.
+
+ÉTAPE 5 : ANALYSE
+- Envoyer transcription et planche contact à un modèle vision compatible.
+- Identifier les moments qui ont besoin d'un B-roll.
+- Éviter les insertions inutiles.
+- Retourner des suggestions courtes et contextualisées.
+- Prévoir une dégradation contrôlée si la vision échoue.
+
+ÉTAPE 6 : RECHERCHE B-ROLL
+- Rechercher sur Pixabay.
+- Obtenir jusqu'à 4 candidats par suggestion.
+- Enregistrer les métadonnées et la provenance.
+- Le candidat actif est référencé par selectedCandidateId.
+
+ÉTAPE 7 : ÉDITION
+- Charger le projet et les suggestions dans le frontend.
+- Permettre acceptation/refus/remplacement.
+- Permettre modification des timestamps et de la durée.
+- Permettre le cadrage simple.
+- Sauvegarder le JSON de timeline.
+
+ÉTAPE 8 : PRÉVISUALISATION
+- Afficher la vidéo source.
+- Superposer ou commuter le B-roll selon le temps de lecture.
+- Synchroniser les timestamps.
+- Précharger les médias si possible.
+- Ne pas confondre preview et rendu final.
+
+ÉTAPE 9 : RENDU
+- Créer un job SQLite.
+- Le worker récupère le job atomiquement.
+- FFmpeg compose la vidéo.
+- L'audio original est conservé.
+- Le fichier est écrit dans le dossier du projet.
+
+ÉTAPE 10 : VALIDATION ET TÉLÉCHARGEMENT
+- Vérifier le MP4 avec ffprobe.
+- Vérifier durée, pistes et taille.
+- Passer le rendu à completed uniquement si valide.
+- Exposer une route de téléchargement sécurisée.
+
+======================================================================
+14. API : CONTRAT FONCTIONNEL DE RÉFÉRENCE
+======================================================================
+
+Les routes ci-dessous sont la référence initiale. Les noms exacts et les
+formats doivent être documentés dans docs/API.md.
+
+POST /api/projects
+Entrée : métadonnées minimales de création.
+Sortie : projet créé et identifiant.
+
+POST /api/projects/:id/upload
+Entrée : fichier vidéo.
+Sortie : métadonnées source et statut upload.
+
+POST /api/projects/:id/analyze
+Entrée : aucune ou options d'analyse limitées.
+Sortie : confirmation de mise en file ou lancement de l'analyse.
+
+GET /api/projects/:id
+Sortie : projet complet utile au frontend.
+
+GET /api/projects/:id/status
+Sortie : statuts analyse, progression si disponible, erreur éventuelle.
+
+GET /api/projects/:id/suggestions
+Sortie : suggestions B-roll et candidats.
+
+PATCH /api/projects/:id/timeline
+Entrée : modifications de timeline conformes au contrat.
+Sortie : timeline enregistrée et revision actualisée.
+
+POST /api/projects/:id/render
+Entrée : demande de rendu.
+Sortie : jobId et statut queued.
+
+GET /api/projects/:id/render/status
+Sortie : statut, progression et erreur éventuelle.
+
+GET /api/projects/:id/download
+Sortie : fichier MP4 si le rendu est completed et validé.
+
+Les agents doivent ajouter les codes HTTP, les schémas JSON, les erreurs
+et les règles de validation dans docs/API.md.
+
+======================================================================
+15. PLAN DE TRAVAIL ET PRIORITÉS
+======================================================================
+
+MERCREDI 18 NOVEMBRE :
+- Créer le contrat commun shared/contract.ts.
+- Créer les dossiers de base.
+- Claude initialise le backend et les endpoints essentiels.
+- Codex prouve rapidement un rendu FFmpeg avec une vidéo et un B-roll local.
+- OpenCode crée la fixture vidéo et le JSON de test.
+- Alex commence l'interface frontend avec les données de fixture.
+
+JEUDI 19 NOVEMBRE :
+- Claude : upload, validation, SQLite, transcription et analyse.
+- Codex : worker, timeline de rendu et conservation audio.
+- OpenCode : tests de contrat, fixtures et premiers tests de sécurité.
+- Alex : import, lecteur, liste des suggestions et timeline simplifiée.
+
+VENDREDI 20 NOVEMBRE :
+- Intégration backend/frontend/renderer.
+- Test du parcours réel avec Groq, OpenRouter et Pixabay.
+- Test du rendu complet.
+- Correction des bugs bloquants.
+- Vérification des limites et des erreurs.
+- Aucune nouvelle fonctionnalité importante en fin de journée.
+
+SAMEDI 21 NOVEMBRE :
+- Tests finaux.
+- Déploiement frontend.
+- Démarrage backend et worker.
+- Test d'un parcours complet depuis l'interface.
+- Ouverture contrôlée à quelques testeurs si les critères sont satisfaits.
+
+DIMANCHE 22 NOVEMBRE :
+- Marge de sécurité.
+- Correction des derniers problèmes bloquants.
+- Pas de refonte d'architecture.
+
+ORDRE ABSOLU DES PRIORITÉS :
+P0 : importer une vidéo.
+P0 : obtenir une transcription.
+P0 : produire des suggestions B-roll.
+P0 : prévisualiser les insertions.
+P0 : exporter un MP4 valide avec audio original.
+P1 : remplacer les candidats facilement.
+P1 : améliorer le cadrage et la timeline.
+P2 : améliorer le design et les animations.
+P2 : ajouter Pexels ou HyperFrames.
+P3 : comptes, abonnements, fonctionnalités avancées.
+
+Si le calendrier se tend, supprimer P2 et P3, jamais les tests du parcours P0.
+
+======================================================================
+16. CRITÈRES DE VALIDATION DE LA BÊTA
+======================================================================
+
+La bêta n'est prête que si les points suivants sont vérifiés :
+
+IMPORT :
+[ ] Une vidéo MP4 valide peut être importée.
+[ ] Une vidéo trop volumineuse est rejetée.
+[ ] Une vidéo trop longue est rejetée.
+[ ] Un fichier invalide est rejeté proprement.
+
+ANALYSE :
+[ ] La transcription est réelle et provient de Groq.
+[ ] Les erreurs API sont gérées.
+[ ] L'analyse visuelle est réellement exécutée si annoncée comme disponible.
+[ ] Les suggestions sont cohérentes avec la vidéo.
+[ ] Les recherches Pixabay retournent des candidats réels.
+[ ] Les alternatives peuvent être consultées.
+
+ÉDITION :
+[ ] L'utilisateur peut accepter/refuser un B-roll.
+[ ] L'utilisateur peut remplacer le candidat sélectionné.
+[ ] L'utilisateur peut ajuster début et durée.
+[ ] Les modifications sont sauvegardées.
+[ ] La preview respecte les paramètres de la timeline.
+
+RENDU :
+[ ] Le worker prend le job.
+[ ] Le MP4 final est produit.
+[ ] Les B-rolls sont aux bons moments.
+[ ] Le cadrage est correct.
+[ ] L'audio original est conservé.
+[ ] ffprobe valide le fichier final.
+[ ] Le téléchargement fonctionne.
+
+SÉCURITÉ :
+[ ] Aucune clé API dans le frontend.
+[ ] Aucun chemin serveur arbitraire accepté.
+[ ] Les fichiers sont isolés par projet.
+[ ] Les erreurs ne révèlent pas de secrets.
+[ ] Les téléchargements sont contrôlés.
+
+EXPÉRIENCE :
+[ ] Les états de chargement sont compréhensibles.
+[ ] Les erreurs sont visibles et utiles.
+[ ] L'utilisateur peut aller de l'import au téléchargement sans intervention
+    manuelle d'un développeur.
+
+Un seul défaut P0 bloque l'ouverture de la bêta.
+
+======================================================================
+17. VARIABLES D'ENVIRONNEMENT ATTENDUES
+======================================================================
+
+Créer un .env.example sans secrets. Les noms exacts sont à confirmer par
+Claude et à documenter.
+
+Exemples de variables possibles :
+
+NODE_ENV=development
+PORT=3000
+APP_BASE_URL=http://localhost:3000
+FRONTEND_ORIGIN=http://localhost:5500
+
+DATABASE_PATH=./backend/data/alt-broll.sqlite
+STORAGE_ROOT=./storage
+
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
+PIXABAY_API_KEY=
+
+MAX_UPLOAD_MB=150
+MAX_VIDEO_DURATION_SECONDS=180
+MAX_CONCURRENT_RENDERS=1
+
+Ne pas mettre de vraies clés dans ce document.
+Ne pas committer .env.
+Le frontend ne doit recevoir aucune clé fournisseur.
+
+======================================================================
+18. CONSIGNES DE DÉMARRAGE POUR CHAQUE AGENT
+======================================================================
+
+MESSAGE DE DÉMARRAGE POUR CLAUDE CODE :
+
+« Lis intégralement PROJECT_MASTER.txt. Tu es responsable exclusivement du
+backend dans backend/. Commence par examiner shared/contract.ts dès qu'il
+est disponible. N'interviens pas dans frontend/ ni renderer/. Ta priorité
+est de construire un backend réellement exécutable : configuration,
+SQLite, stockage local sécurisé, upload/validation, pipeline Groq,
+extraction de keyframes, analyse OpenRouter, recherche Pixabay, API et
+création des jobs de rendu. Respecte les endpoints et le contrat commun.
+Ne présente jamais un mock comme une intégration réelle. Ne construis pas
+de fonctionnalités hors périmètre. Avant de commencer, indique brièvement
+ton plan et les éventuels points bloquants. À chaque étape importante,
+fournis les fichiers créés, commandes exécutées, résultats de tests et
+prochaine étape. Termine par un rapport d'état précis. »
+
+MESSAGE DE DÉMARRAGE POUR CODEX :
+
+« Lis intégralement PROJECT_MASTER.txt. Tu es responsable exclusivement du
+moteur vidéo et du worker dans renderer/. N'interviens pas dans backend/
+ni frontend/. Commence par un test FFmpeg minimal qui prend une vidéo
+source et un B-roll local et produit un MP4 avec l'audio source conservé.
+Ensuite construis le worker, la prise atomique des jobs et l'intégration au
+contrat shared/contract.ts et à SQLite. FFmpeg natif est prioritaire.
+HyperFrames est facultatif et ne doit pas retarder le premier export.
+Prépare des tests reproductibles avec les fixtures locales. Avant de
+commencer, indique les prérequis et les points de synchronisation avec
+Claude. Termine par un rapport d'état précis. »
+
+MESSAGE DE DÉMARRAGE POUR OPENCODE :
+
+« Lis intégralement PROJECT_MASTER.txt. Tu es responsable QA, tests,
+fixtures et audits. Ne réécris pas backend/ ou renderer/. Commence par
+créer une fixture vidéo légère et un JSON de projet conforme à
+shared/contract.ts, puis prépare les tests de contrat, les tests de rendu
+et les tests de sécurité. Vérifie régulièrement la cohérence entre le
+backend de Claude et le renderer de Codex. Signale immédiatement les bugs
+bloquants avec une reproduction et une recommandation concrète. Les tests
+doivent pouvoir fonctionner sans appels externes à Groq, OpenRouter ou
+Pixabay. Termine par un rapport QA priorisé. »
+
+======================================================================
+19. FORMAT OBLIGATOIRE DES RAPPORTS D'AGENTS
+======================================================================
+
+À la fin de chaque session, chaque agent doit répondre selon ce format :
+
+AGENT :
+DATE / SESSION :
+
+1. RÉSUMÉ
+Ce qui a été accompli en quelques lignes.
+
+2. FICHIERS CRÉÉS
+Liste des fichiers créés.
+
+3. FICHIERS MODIFIÉS
+Liste des fichiers modifiés.
+
+4. FONCTIONNALITÉS RÉELLEMENT TERMINÉES
+Distinguer le réel du simulé.
+
+5. TESTS EXÉCUTÉS
+Commandes lancées et résultats.
+
+6. PROBLÈMES RESTANTS
+Bugs, limites, dépendances et blocages.
+
+7. DÉCISIONS ATTENDUES D'ALEX
+Questions qui empêchent d'avancer.
+
+8. PROCHAINE ÉTAPE
+Une seule priorité principale, puis les tâches secondaires.
+
+Ne jamais écrire « terminé » si le code n'a pas été exécuté ou testé.
+
+======================================================================
+20. DÉCISIONS TECHNIQUES NON NÉGOCIABLES À CE STADE
+======================================================================
+
+- Le dossier racine de travail est alt-hol/.
+- Le produit est ALT B-ROLL.
+- Le contrat commun se trouve dans shared/contract.ts.
+- SQLite est la source de vérité des projets et jobs.
+- Les fichiers sont stockés localement pour la bêta.
+- Backend et worker tournent sur la même machine.
+- FFmpeg natif est prioritaire.
+- L'audio original doit être conservé.
+- Groq est le service de transcription prioritaire.
+- OpenRouter est le service d'analyse prioritaire.
+- Pixabay est la source B-roll prioritaire.
+- Le frontend ne détient aucune clé API.
+- Les mocks doivent être clairement identifiés.
+- Les tests locaux ne doivent pas dépendre des API externes.
+- Le premier objectif est le parcours complet import -> analyse -> édition
+  -> preview -> export -> téléchargement.
+- La date cible ne justifie pas de sacrifier la sécurité minimale ou la
+  validité du fichier exporté.
+
+======================================================================
+21. PREMIÈRE ACTION À EFFECTUER DANS LE DOSSIER VIDE
+======================================================================
+
+Ordre de démarrage recommandé :
+
+1. Alex crée ce fichier sous le nom PROJECT_MASTER.txt dans alt-hol/.
+2. Alex crée les dossiers shared/, frontend/, backend/, renderer/, tests/
+   et docs/.
+3. Alex crée shared/contract.ts en s'appuyant sur la section 6.
+4. Alex partage le même dossier local aux trois agents.
+5. Chaque agent lit ce document avant toute modification.
+6. Claude commence backend/.
+7. Codex commence par le test FFmpeg minimal dans renderer/.
+8. OpenCode commence les fixtures et les tests dans tests/.
+9. Alex commence frontend/ avec le contrat et les données de fixture.
+10. Les agents communiquent leurs rapports à Alex pour arbitrage et intégration.
+
+IMPORTANT :
+Ne lancez pas les trois agents en leur demandant simplement de « construire
+ALT B-ROLL ». Donnez à chacun son message de démarrage correspondant.
+Le présent document définit les frontières de responsabilité pour éviter
+les conflits de fichiers et les architectures incompatibles.
+
+FIN DU DOCUMENT
+ALT B-ROLL - PROJECT MASTER

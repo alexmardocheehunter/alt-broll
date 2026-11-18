@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "file": "source/source-30s.mp4",
+    "durationSeconds": 30,
+    "width": 640,
+    "height": 360,
+    "frameRate": 30,
+    "audioPresent": true
+  },
+  "output": {
+    "file": "output/fixture-render.mp4",
+    "width": 640,
+    "height": 360,
+    "frameRate": 30
+  },
+  "segments": [
+    {
+      "brollItemId": "br_fix_01",
+      "candidateId": "cand_fix_01a",
+      "startSeconds": 5,
+      "endSeconds": 9,
+      "fit": "cover",
+      "media": {
+        "file": "broll/broll-city-8s.mp4",
+        "durationSeconds": 8,
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "brollItemId": "br_fix_02",
+      "candidateId": "cand_fix_02a",
+      "startSeconds": 15,
+      "endSeconds": 19,
+      "fit": "contain",
+      "media": {
+        "file": "broll/broll-portrait-6s.mp4",
+        "durationSeconds": 6,
+        "width": 360,
+        "height": 640
+      }
+    }
+  ]
+}

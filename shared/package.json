@@ -1,0 +1,7 @@
+{
+  "name": "@alt-broll/shared",
+  "version": "1.0.0-proposal",
+  "private": true,
+  "description": "Contrat commun ALT B-ROLL : types et constantes sans dépendance.",
+  "type": "module"
+}

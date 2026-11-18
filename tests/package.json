@@ -1,0 +1,19 @@
+{
+  "name": "alt-broll-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ALT B-ROLL : fixtures, tests de contrat, d'intégration et de sécurité (OpenCode / QA)",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "fixtures": "node fixtures/build-fixtures.mjs",
+    "fixtures:force": "node fixtures/build-fixtures.mjs --force",
+    "test": "node --test --test-timeout=180000 \"**/*.test.ts\"",
+    "test:contract": "node --test --test-timeout=60000 \"contract/*.test.ts\"",
+    "test:renderer": "node --test --test-timeout=120000 \"renderer/*.test.ts\"",
+    "test:integration": "node --test --test-timeout=180000 \"integration/*.test.ts\"",
+    "test:security": "node --test --test-timeout=180000 \"security/*.test.ts\""
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "project": {
+    "id": "3b7f9c1e-2a4d-4e8b-9f61-0c5d2e7a8b90",
+    "schemaVersion": 1,
+    "revision": 7,
+    "createdAt": "2026-11-18T15:02:11.204Z",
+    "updatedAt": "2026-11-18T15:09:47.880Z",
+    "source": {
+      "originalName": "presentation-awa.mp4",
+      "storedFileName": "8d2f4a6c-1b3e-4f5a-9c7d-2e8b0a1f3c5d.mp4",
+      "mimeType": "video/mp4",
+      "sizeBytes": 48234112,
+      "durationSeconds": 95.429,
+      "width": 1920,
+      "height": 1080,
+      "frameRate": 29.97,
+      "videoCodec": "h264",
+      "audioPresent": true,
+      "audioCodec": "aac"
+    },
+    "transcript": {
+      "provider": "groq",
+      "model": "whisper-large-v3-turbo",
+      "language": "fr",
+      "text": "Bonjour, je m'appelle Awa et je vends des jus de fruits frais. Mon stand se trouve au cœur du marché de Treichville, à Abidjan. Chaque matin, je choisis moi-même les mangues les plus mûres. Mon rêve, c'est d'ouvrir un vrai kiosque en ville.",
+      "segments": [
+        {
+          "startSeconds": 0,
+          "endSeconds": 5.8,
+          "text": "Bonjour, je m'appelle Awa et je vends des jus de fruits frais."
+        },
+        {
+          "startSeconds": 5.8,
+          "endSeconds": 11.2,
+          "text": "Mon stand se trouve au cœur du marché de Treichville, à Abidjan."
+        },
+        {
+          "startSeconds": 30.1,
+          "endSeconds": 36.4,
+          "text": "Chaque matin, je choisis moi-même les mangues les plus mûres."
+        },
+        {
+          "startSeconds": 76.9,
+          "endSeconds": 83.2,
+          "text": "Mon rêve, c'est d'ouvrir un vrai kiosque en ville."
+        }
+      ],
+      "words": []
+    },
+    "analysis": {
+      "status": "completed",
+      "stage": null,
+      "model": "fournisseur/modele-vision-exemple",
+      "visualAnalysisAvailable": true,
+      "keyframes": [
+        {
+          "index": 0,
+          "timeSeconds": 1.5
+        },
+        {
+          "index": 1,
+          "timeSeconds": 9
+        },
+        {
+          "index": 2,
+          "timeSeconds": 16.8
+        },
+        {
+          "index": 3,
+          "timeSeconds": 24.4
+        },
+        {
+          "index": 4,
+          "timeSeconds": 31.9
+        },
+        {
+          "index": 5,
+          "timeSeconds": 39.6
+        },
+        {
+          "index": 6,
+          "timeSeconds": 47.2
+        },
+        {
+          "index": 7,
+          "timeSeconds": 54.8
+        },
+        {
+          "index": 8,
+          "timeSeconds": 62.3
+        },
+        {
+          "index": 9,
+          "timeSeconds": 70.1
+        },
+        {
+          "index": 10,
+          "timeSeconds": 77.7
+        },
+        {
+          "index": 11,
+          "timeSeconds": 85.4
+        }
+      ],
+      "summary": "Awa, vendeuse de jus au marché de Treichville, présente son activité et son projet de kiosque.",
+      "startedAt": "2026-11-18T15:03:02.511Z",
+      "completedAt": "2026-11-18T15:04:19.087Z",
+      "error": null
+    },
+    "brollItems": [
+      {
+        "id": "broll_mk01",
+        "startSeconds": 6.2,
+        "endSeconds": 10.4,
+        "reason": "Awa situe son stand au marché de Treichville : un plan d'ambiance place la scène.",
+        "searchQuery": "busy african market street",
+        "candidates": [
+          {
+            "id": "cand_mk01a",
+            "provider": "pixabay",
+            "providerMediaId": "100001",
+            "title": "market, street, crowd",
+            "previewUrl": "https://example.com/pixabay/100001-tiny.mp4",
+            "downloadUrl": "https://example.com/pixabay/100001-large.mp4",
+            "sourcePageUrl": "https://example.com/pixabay/videos/100001/",
+            "thumbnailUrl": "https://example.com/pixabay/100001-thumb.jpg",
+            "durationSeconds": 14,
+            "width": 1920,
+            "height": 1080,
+            "attribution": "Vidéo de AuteurExemple1 sur Pixabay"
+          },
+          {
+            "id": "cand_mk01b",
+            "provider": "pixabay",
+            "providerMediaId": "100002",
+            "title": "market, fruits, people",
+            "previewUrl": "https://example.com/pixabay/100002-tiny.mp4",
+            "downloadUrl": "https://example.com/pixabay/100002-large.mp4",
+            "sourcePageUrl": "https://example.com/pixabay/videos/100002/",
+            "thumbnailUrl": "https://example.com/pixabay/100002-thumb.jpg",
+            "durationSeconds": 22,
+            "width": 1920,
+            "height": 1080,
+            "attribution": "Vidéo de AuteurExemple2 sur Pixabay"
+          }
+        ],
+        "selectedCandidateId": "cand_mk01a",
+        "status": "accepted",
+        "fit": "cover",
+        "enabled": true
+      },
+      {
+        "id": "broll_mg02",
+        "startSeconds": 31.5,
+        "endSeconds": 35,
+        "reason": "Elle décrit le choix des mangues : un gros plan sur les fruits rend le propos concret.",
+        "searchQuery": "fresh mangoes close up",
+        "candidates": [
+          {
+            "id": "cand_mg02a",
+            "provider": "pixabay",
+            "providerMediaId": "100003",
+            "title": "mango, fruit, close-up",
+            "previewUrl": "https://example.com/pixabay/100003-tiny.mp4",
+            "downloadUrl": "https://example.com/pixabay/100003-large.mp4",
+            "sourcePageUrl": "https://example.com/pixabay/videos/100003/",
+            "thumbnailUrl": "https://example.com/pixabay/100003-thumb.jpg",
+            "durationSeconds": 12,
+            "width": 1920,
+            "height": 1080,
+            "attribution": "Vidéo de AuteurExemple3 sur Pixabay"
+          },
+          {
+            "id": "cand_mg02b",
+            "provider": "pixabay",
+            "providerMediaId": "100004",
+            "title": "mangoes, market stall",
+            "previewUrl": "https://example.com/pixabay/100004-tiny.mp4",
+            "downloadUrl": "https://example.com/pixabay/100004-large.mp4",
+            "sourcePageUrl": "https://example.com/pixabay/videos/100004/",
+            "thumbnailUrl": "https://example.com/pixabay/100004-thumb.jpg",
+            "durationSeconds": 9,
+            "width": 1080,
+            "height": 1920,
+            "attribution": "Vidéo de AuteurExemple4 sur Pixabay"
+          }
+        ],
+        "selectedCandidateId": "cand_mg02b",
+        "status": "suggested",
+        "fit": "contain",
+        "enabled": true
+      },
+      {
+        "id": "broll_sk03",
+        "startSeconds": 78,
+        "endSeconds": 82,
+        "reason": "Le kiosque est un projet : une rue commerçante illustre son ambition.",
+        "searchQuery": "small street kiosk city",
+        "candidates": [
+          {
+            "id": "cand_sk03a",
+            "provider": "pixabay",
+            "providerMediaId": "100005",
+            "title": "kiosk, street, city",
+            "previewUrl": "https://example.com/pixabay/100005-tiny.mp4",
+            "downloadUrl": "https://example.com/pixabay/100005-large.mp4",
+            "sourcePageUrl": "https://example.com/pixabay/videos/100005/",
+            "thumbnailUrl": "https://example.com/pixabay/100005-thumb.jpg",
+            "durationSeconds": 17,
+            "width": 1280,
+            "height": 720,
+            "attribution": "Vidéo de AuteurExemple5 sur Pixabay"
+          }
+        ],
+        "selectedCandidateId": "cand_sk03a",
+        "status": "rejected",
+        "fit": "cover",
+        "enabled": true
+      }
+    ],
+    "timeline": {
+      "segments": [
+        {
+          "brollItemId": "broll_mk01",
+          "candidateId": "cand_mk01a",
+          "startSeconds": 6.2,
+          "endSeconds": 10.4,
+          "fit": "cover"
+        },
+        {
+          "brollItemId": "broll_mg02",
+          "candidateId": "cand_mg02b",
+          "startSeconds": 31.5,
+          "endSeconds": 35,
+          "fit": "contain"
+        }
+      ]
+    },
+    "render": {
+      "status": "completed",
+      "jobId": "5d0c2b8e-7f1a-4c3d-9e6b-2a4f8c1d0e73",
+      "revision": 7,
+      "progress": 1,
+      "outputFile": {
+        "sizeBytes": 51904220,
+        "durationSeconds": 95.429
+      },
+      "startedAt": "2026-11-18T15:10:02.114Z",
+      "completedAt": "2026-11-18T15:11:37.902Z",
+      "error": null
+    },
+    "urls": {
+      "source": "http://localhost:3000/api/projects/3b7f9c1e-2a4d-4e8b-9f61-0c5d2e7a8b90/media/source",
+      "download": "http://localhost:3000/api/projects/3b7f9c1e-2a4d-4e8b-9f61-0c5d2e7a8b90/download"
+    }
+  }
+}

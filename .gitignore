@@ -1,0 +1,27 @@
+# Dépendances
+node_modules/
+
+# Secrets : ne jamais committer
+.env
+.env.*
+!.env.example
+
+# Données locales : base SQLite, médias importés, B-rolls téléchargés, rendus
+backend/data/*
+!backend/data/.gitkeep
+storage/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Sorties de compilation éventuelles
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Fichiers système
+.DS_Store
+Thumbs.db

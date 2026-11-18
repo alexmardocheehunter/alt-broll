@@ -1,0 +1,61 @@
+{
+  "note": "Fixtures synthétiques générées par tests/fixtures/build-fixtures.mjs (FFmpeg lavfi). Aucune donnée tierce.",
+  "generatedBy": "tests/fixtures/build-fixtures.mjs",
+  "files": [
+    {
+      "name": "audio-only-10s.mp4",
+      "sizeBytes": 83243,
+      "sha256": "8f22279e133f1e005c4ca65cf19922649ca93692f285fcaff6328c8f42133ef0"
+    },
+    {
+      "name": "broll-city-8s.mp4",
+      "sizeBytes": 93905,
+      "sha256": "242df2c664ab28365ca477f1f371c461e34f71962519318c7fd946768a0f2ec8"
+    },
+    {
+      "name": "broll-portrait-6s.mp4",
+      "sizeBytes": 32634,
+      "sha256": "6bb18884070a026ff0716dcdb71738b103ffeeaf8c548e815b09b8258843ada5"
+    },
+    {
+      "name": "broll-short-4s.mp4",
+      "sizeBytes": 14008,
+      "sha256": "94f49fe715f493bec788df6a91298a32e88bb77cbbfd54c2717dfad87c59eeb1"
+    },
+    {
+      "name": "no-audio-10s.mp4",
+      "sizeBytes": 465124,
+      "sha256": "0a561bc8c45ca598846f45e85949295b3c0ce7c3ce545bf4177c8e19aed4ad58"
+    },
+    {
+      "name": "not-a-video.mp4",
+      "sizeBytes": 100,
+      "sha256": "46e4a1fb5367afdd08ee4e8475e189b7a83ce484e09e661e482c57d8b3b69d98"
+    },
+    {
+      "name": "source-30s.mp4",
+      "sizeBytes": 2064859,
+      "sha256": "91a81ffb8feedfd9c5c39bdb77e02c97694c763ffa12acc705fa622a03c8ff02"
+    },
+    {
+      "name": "source-rotated-10s.mp4",
+      "sizeBytes": 655076,
+      "sha256": "5cdf73121f58896ffdf476484eed836d0563e8e16a656fcb90ee77bb0cb0980a"
+    },
+    {
+      "name": "too-long-181s.mp4",
+      "sizeBytes": 592728,
+      "sha256": "9e35f217045302cc76b25977dd27419bc1c276dc1c97dcd8230691b6e77ccae7"
+    },
+    {
+      "name": "too-short-3s.mp4",
+      "sizeBytes": 86140,
+      "sha256": "48573084043e40e6dfcd474274d0fa1f2a449db0d6d23c64bfcf6c003930d386"
+    },
+    {
+      "name": "truncated.mp4",
+      "sizeBytes": 4096,
+      "sha256": "aed635157e738d0d5a09500b1c3cab6e2383efd3aa376c100698eb637ad69725"
+    }
+  ]
+}

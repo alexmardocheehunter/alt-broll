@@ -1,0 +1,218 @@
+{
+  "project": {
+    "id": "fixture_project_001",
+    "schemaVersion": 1,
+    "revision": 5,
+    "createdAt": "2026-11-18T09:00:00.000Z",
+    "updatedAt": "2026-11-18T09:10:00.000Z",
+    "source": {
+      "originalName": "fixture-source-30s.mp4",
+      "storedFileName": "source-30s.mp4",
+      "mimeType": "video/mp4",
+      "sizeBytes": 2064859,
+      "durationSeconds": 30,
+      "width": 640,
+      "height": 360,
+      "frameRate": 30,
+      "videoCodec": "h264",
+      "audioPresent": true,
+      "audioCodec": "aac"
+    },
+    "transcript": {
+      "provider": "groq",
+      "model": "whisper-large-v3-turbo",
+      "language": "fr",
+      "text": "Ceci est une transcription fictive, utilisée uniquement par les tests ALT B-ROLL. Aucune API Groq n'a été appelée.",
+      "segments": [
+        {
+          "startSeconds": 0.5,
+          "endSeconds": 6.2,
+          "text": "Ceci est une transcription fictive, utilisée uniquement par les tests ALT B-ROLL."
+        },
+        {
+          "startSeconds": 6.2,
+          "endSeconds": 12.8,
+          "text": "Aucune API Groq n'a été appelée pour produire ce texte."
+        },
+        {
+          "startSeconds": 14.5,
+          "endSeconds": 20,
+          "text": "Les suggestions et les candidats ci-dessous sont également des données de test."
+        },
+        {
+          "startSeconds": 21.5,
+          "endSeconds": 28.5,
+          "text": "Aucune vidéo Pixabay n'est utilisée : les médias sont synthétiques et locaux."
+        }
+      ],
+      "words": []
+    },
+    "analysis": {
+      "status": "completed",
+      "stage": null,
+      "model": "fixture/no-vision-model",
+      "visualAnalysisAvailable": false,
+      "keyframes": [],
+      "summary": "Projet de test QA : données fictives, aucune analyse IA réelle.",
+      "startedAt": "2026-11-18T09:02:00.000Z",
+      "completedAt": "2026-11-18T09:03:00.000Z",
+      "error": null
+    },
+    "brollItems": [
+      {
+        "id": "br_fix_01",
+        "startSeconds": 5,
+        "endSeconds": 9,
+        "reason": "Fixture : un plan de rue illustre le propos (donnée de test).",
+        "searchQuery": "city street traffic",
+        "candidates": [
+          {
+            "id": "cand_fix_01a",
+            "provider": "pixabay",
+            "providerMediaId": "fixture-1001",
+            "title": "Fixture locale : rue animée",
+            "previewUrl": "https://example.com/fixtures/broll-city-8s.mp4",
+            "downloadUrl": "https://example.com/fixtures/broll-city-8s.mp4",
+            "sourcePageUrl": "https://example.com/fixtures/broll-city-8s",
+            "thumbnailUrl": null,
+            "durationSeconds": 8,
+            "width": 640,
+            "height": 360,
+            "attribution": "Fixture locale — aucune vidéo Pixabay réelle"
+          },
+          {
+            "id": "cand_fix_01b",
+            "provider": "pixabay",
+            "providerMediaId": "fixture-1002",
+            "title": "Fixture locale : portrait",
+            "previewUrl": "https://example.com/fixtures/broll-portrait-6s.mp4",
+            "downloadUrl": "https://example.com/fixtures/broll-portrait-6s.mp4",
+            "sourcePageUrl": "https://example.com/fixtures/broll-portrait-6s",
+            "thumbnailUrl": "https://example.com/fixtures/broll-portrait-thumb.jpg",
+            "durationSeconds": 6,
+            "width": 360,
+            "height": 640,
+            "attribution": "Fixture locale — aucune vidéo Pixabay réelle"
+          }
+        ],
+        "selectedCandidateId": "cand_fix_01a",
+        "status": "accepted",
+        "fit": "cover",
+        "enabled": true
+      },
+      {
+        "id": "br_fix_02",
+        "startSeconds": 15,
+        "endSeconds": 19,
+        "reason": "Fixture : un plan vertical montre le cadrage « contain » (donnée de test).",
+        "searchQuery": "vertical portrait nature",
+        "candidates": [
+          {
+            "id": "cand_fix_02a",
+            "provider": "pixabay",
+            "providerMediaId": "fixture-1002",
+            "title": "Fixture locale : portrait",
+            "previewUrl": "https://example.com/fixtures/broll-portrait-6s.mp4",
+            "downloadUrl": "https://example.com/fixtures/broll-portrait-6s.mp4",
+            "sourcePageUrl": "https://example.com/fixtures/broll-portrait-6s",
+            "thumbnailUrl": null,
+            "durationSeconds": 6,
+            "width": 360,
+            "height": 640,
+            "attribution": "Fixture locale — aucune vidéo Pixabay réelle"
+          }
+        ],
+        "selectedCandidateId": "cand_fix_02a",
+        "status": "suggested",
+        "fit": "contain",
+        "enabled": true
+      },
+      {
+        "id": "br_fix_03",
+        "startSeconds": 22,
+        "endSeconds": 25,
+        "reason": "Fixture : suggestion refusée, elle ne doit pas être montée (donnée de test).",
+        "searchQuery": "blue abstract background",
+        "candidates": [
+          {
+            "id": "cand_fix_03a",
+            "provider": "pixabay",
+            "providerMediaId": "fixture-1003",
+            "title": "Fixture locale : fond bleu",
+            "previewUrl": "https://example.com/fixtures/broll-short-4s.mp4",
+            "downloadUrl": "https://example.com/fixtures/broll-short-4s.mp4",
+            "sourcePageUrl": "https://example.com/fixtures/broll-short-4s",
+            "thumbnailUrl": null,
+            "durationSeconds": 4,
+            "width": 640,
+            "height": 360,
+            "attribution": "Fixture locale — aucune vidéo Pixabay réelle"
+          }
+        ],
+        "selectedCandidateId": "cand_fix_03a",
+        "status": "rejected",
+        "fit": "cover",
+        "enabled": true
+      },
+      {
+        "id": "br_fix_04",
+        "startSeconds": 26,
+        "endSeconds": 28,
+        "reason": "Fixture : suggestion désactivée, elle ne doit pas être montée (donnée de test).",
+        "searchQuery": "blue abstract background",
+        "candidates": [
+          {
+            "id": "cand_fix_04a",
+            "provider": "pixabay",
+            "providerMediaId": "fixture-1003",
+            "title": "Fixture locale : fond bleu",
+            "previewUrl": "https://example.com/fixtures/broll-short-4s.mp4",
+            "downloadUrl": "https://example.com/fixtures/broll-short-4s.mp4",
+            "sourcePageUrl": "https://example.com/fixtures/broll-short-4s",
+            "thumbnailUrl": null,
+            "durationSeconds": 4,
+            "width": 640,
+            "height": 360,
+            "attribution": "Fixture locale — aucune vidéo Pixabay réelle"
+          }
+        ],
+        "selectedCandidateId": "cand_fix_04a",
+        "status": "suggested",
+        "fit": "cover",
+        "enabled": false
+      }
+    ],
+    "timeline": {
+      "segments": [
+        {
+          "brollItemId": "br_fix_01",
+          "candidateId": "cand_fix_01a",
+          "startSeconds": 5,
+          "endSeconds": 9,
+          "fit": "cover"
+        },
+        {
+          "brollItemId": "br_fix_02",
+          "candidateId": "cand_fix_02a",
+          "startSeconds": 15,
+          "endSeconds": 19,
+          "fit": "contain"
+        }
+      ]
+    },
+    "render": {
+      "status": "idle",
+      "jobId": null,
+      "revision": null,
+      "progress": 0,
+      "outputFile": null,
+      "startedAt": null,
+      "completedAt": null,
+      "error": null
+    },
+    "urls": {
+      "source": "http://localhost:3000/api/projects/fixture_project_001/media/source",
+      "download": null
+    }
+  }
+}

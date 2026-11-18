@@ -1,0 +1,623 @@
+ALT B-ROLL
+PRÉSENTATION DU PROJET ET DÉTAILS POUR LE FRONTEND
+Version : 1.0
+Date : 18 novembre 2026
+Source : LES INSTRUCTIONS.txt (document maître du projet)
+Rédaction : Claude Code, pour Alex
+
+Ce fichier explique ce qu'est ALT B-ROLL et rassemble ce qu'il faut savoir
+pour construire l'interface. En cas de différence, le document maître
+(futur PROJECT_MASTER.txt) et le contrat shared/contract.ts font foi.
+
+Les mentions [PROPOSITION] et [PROVISOIRE] signalent ce qui n'est pas
+encore validé par Alex.
+
+SOMMAIRE
+1. ALT B-ROLL en bref
+2. Parcours utilisateur
+3. La bêta
+4. Ce que comprend la V1
+5. Comment ça marche (vue technique)
+6. Qui fait quoi
+7. L'interface : les vues
+8. Disposition de l'éditeur
+9. Timeline : règles
+10. Prévisualisation : règles techniques
+11. Animations
+12. États à prévoir
+13. Données affichées par le frontend
+14. API et enchaînement des appels
+15. Sécurité côté frontend
+16. Planning et priorités
+17. Critères pour ouvrir la bêta
+18. Décisions en attente
+
+======================================================================
+1. ALT B-ROLL EN BREF
+======================================================================
+
+ALT B-ROLL est une application web qui enrichit une vidéo avec des plans
+de coupe (B-rolls) pertinents, sans logiciel de montage professionnel.
+
+On importe une vidéo parlée (face caméra, interview, tutoriel...).
+L'application transcrit la parole, repère les passages qui gagneraient à
+être illustrés, propose pour chacun des vidéos d'illustration tirées d'une
+banque (Pixabay), laisse l'utilisateur ajuster, puis exporte un MP4 final
+qui garde le son d'origine.
+
+Promesse produit :
+« Importez votre vidéo. ALT B-ROLL repère les moments à illustrer,
+propose des plans de coupe et prépare un montage que vous pouvez ajuster
+puis exporter. »
+
+Ce que l'application n'est pas :
+- un remplaçant de Premiere Pro, DaVinci Resolve ou CapCut ;
+- un générateur de vidéos par IA : rien n'est généré, les B-rolls
+  viennent d'une banque de vidéos ;
+- un outil de montage avancé (multipiste, sous-titres, transitions,
+  étalonnage).
+
+Elle automatise une seule tâche : trouver où placer des B-rolls, lesquels
+choisir, et produire le montage.
+
+======================================================================
+2. PARCOURS UTILISATEUR
+======================================================================
+
+1. Ouverture d'ALT B-ROLL.
+2. Import d'une vidéo MP4.
+3. Validation du fichier et lecture de ses informations techniques.
+4. Transcription de l'audio.
+5. Analyse du texte et d'images représentatives de la vidéo.
+6. Repérage par l'IA des passages où un B-roll serait utile.
+7. Recherche de vidéos correspondantes sur Pixabay.
+8. Consultation des suggestions et de leurs alternatives.
+9. Acceptation, refus, remplacement, déplacement ou ajustement des B-rolls.
+10. Prévisualisation du résultat.
+11. Lancement de l'export.
+12. Téléchargement du MP4 final, avec l'audio original.
+
+Ce parcours doit marcher de bout en bout pour ouvrir la bêta.
+
+======================================================================
+3. LA BÊTA
+======================================================================
+
+Dates :
+- Ouverture visée : samedi 21 novembre 2026 au soir.
+- Marge de sécurité : dimanche 22 novembre 2026 au matin.
+
+Public : 10 testeurs au maximum, quelques vidéos par semaine. Pas de
+promesse de service illimité ou gratuit.
+
+Limites (appliquées par le serveur, affichées par le frontend) :
+- Format : MP4.
+- Durée de la vidéo : 1 à 3 minutes.
+- Taille maximale : 150 Mo.
+- Langue : français en priorité.
+- 3 à 8 suggestions de B-roll par vidéo, jusqu'à 4 vidéos proposées par
+  suggestion.
+- Une vidéo source par projet, une seule piste de B-rolls.
+- Un projet actif par utilisateur, un seul rendu à la fois sur le serveur.
+- Export en 720p ou 1080p selon la source.
+
+Principe : un export MP4 qui marche vaut plus que dix fonctionnalités
+visuelles inachevées.
+
+======================================================================
+4. CE QUE COMPREND LA V1
+======================================================================
+
+Inclus :
+- import d'une vidéo MP4 et vérification réelle du fichier (ffprobe) ;
+- extraction de l'audio et transcription (Groq Whisper) ;
+- extraction d'images représentatives ;
+- analyse du contenu par un modèle d'IA capable de lire des images
+  (via OpenRouter) ;
+- repérage des passages à illustrer ;
+- recherche de vidéos sur Pixabay, avec plusieurs candidats par
+  suggestion ;
+- prévisualisation du montage ;
+- accepter, refuser ou remplacer un candidat ;
+- ajuster le début, la durée et le cadrage d'un B-roll ;
+- sauvegarde de la timeline ;
+- export MP4 avec l'audio original ;
+- suivi de l'avancement de l'analyse et du rendu ;
+- téléchargement sécurisé du résultat.
+
+Exclus :
+- génération de B-rolls par IA ;
+- montage multipiste avancé, sous-titres avancés, transitions complexes ;
+- étalonnage ou mixage audio ;
+- montage collaboratif en temps réel ;
+- application mobile native ;
+- paiement, abonnement, facturation ;
+- gestion avancée de comptes et d'équipes ;
+- bibliothèque média personnelle ;
+- formats d'export multiples.
+
+Optionnel, seulement si le temps le permet et après un premier export
+FFmpeg réussi : Pexels (deuxième banque vidéo) et HyperFrames (autre
+moteur de rendu).
+
+======================================================================
+5. COMMENT ÇA MARCHE (VUE TECHNIQUE)
+======================================================================
+
+Chaîne de traitement :
+1. Upload : le serveur reçoit le MP4, le vérifie avec ffprobe (durée,
+   dimensions, images par seconde, présence de son) et le range dans le
+   dossier du projet.
+2. Audio : extraction du son en mono 16 kHz.
+3. Transcription : Groq Whisper (modèle whisper-large-v3-turbo) renvoie
+   le texte avec ses horodatages.
+4. Images clés : jusqu'à 12 images représentatives, assemblées en une
+   planche contact de 4 x 3 vignettes, chacune avec son horodatage.
+5. Analyse : la transcription et la planche contact partent vers un
+   modèle vision via OpenRouter. Il renvoie les passages à illustrer, une
+   raison courte en français et des mots-clés de recherche en anglais.
+   Si l'analyse visuelle échoue, l'analyse se fait sur le texte seul et
+   le projet l'indique.
+6. Recherche : Pixabay, jusqu'à 4 vidéos candidates par suggestion.
+7. Édition : l'utilisateur ajuste dans le navigateur ; la timeline est
+   sauvegardée en JSON.
+8. Rendu : une tâche est créée ; un worker séparé la prend et compose la
+   vidéo avec FFmpeg, en gardant le son original.
+9. Validation et téléchargement : le fichier final est revérifié avec
+   ffprobe avant d'être proposé au téléchargement.
+
+Architecture :
+- Frontend : HTML, CSS et JavaScript, dans un fichier HTML autonome autant
+  que possible, hébergé sur Firebase Hosting. Il appelle le backend par
+  une URL configurable.
+- Backend : Node.js et TypeScript (Express ou Fastify, choix de Claude),
+  API REST, SQLite pour les projets et les tâches, fichiers stockés sur
+  le disque du serveur.
+- Worker de rendu : processus Node.js séparé, sur la même machine que le
+  backend, un seul rendu à la fois, FFmpeg.
+- Services externes : Groq (transcription), OpenRouter (analyse),
+  Pixabay (vidéos).
+- Pendant la bêta, le backend et le worker tournent sur une machine
+  contrôlée par Alex.
+
+Le navigateur ne détient aucune clé API : tous les appels à Groq,
+OpenRouter et Pixabay passent par le backend.
+
+======================================================================
+6. QUI FAIT QUOI
+======================================================================
+
+- Alex : produit, interface (frontend/), validation du contrat partagé,
+  intégration, tests utilisateurs, déploiement, arbitrages.
+- Claude Code : backend (backend/), API, orchestration de l'IA.
+- Codex : moteur vidéo et worker de rendu (renderer/), FFmpeg.
+- OpenCode : tests, fixtures, audits et rapports qualité (tests/).
+
+Règle : personne ne modifie les fichiers d'un autre sans l'accord d'Alex.
+Le contrat commun des données sera dans shared/contract.ts.
+
+======================================================================
+7. L'INTERFACE : LES VUES
+======================================================================
+
+Une seule page HTML. Les vues sont des sections affichées l'une après
+l'autre. L'éditeur est l'écran principal.
+
+VUE 0 : CODE D'ACCÈS (seulement si cette option est retenue, voir 18)
+- Un champ pour le code du testeur, avant l'import.
+
+VUE 1 : IMPORT
+- Zone de dépôt : glisser-déposer et bouton de sélection.
+- Règles affichées : MP4, 1 à 3 min, 150 Mo max, en français.
+- Contrôle rapide dans le navigateur avant l'envoi : extension, taille,
+  durée (un élément <video> caché lit la durée). Le serveur revérifie de
+  toute façon.
+- Barre de progression de l'envoi, puis « Vérification... » pendant que
+  le serveur valide le fichier.
+- Erreurs claires : fichier trop lourd, trop long, format refusé, fichier
+  illisible.
+
+VUE 2 : ANALYSE
+- Étapes qui se cochent une à une :
+  Extraction audio > Transcription > Images clés > Analyse IA >
+  Recherche de B-rolls.
+- Durée estimée : 30 s à 2 min. L'écran doit montrer que ça avance.
+- En cas d'échec : message clair et bouton « Réessayer ».
+
+VUE 3 : ÉDITEUR (écran principal)
+- En-tête : nom du projet, indicateur de sauvegarde, bouton Exporter.
+- Lecteur vidéo : vidéo source et calque B-roll.
+- Panneau des suggestions : une carte par B-roll.
+- Timeline simplifiée en bas.
+- Détails dans les sections 8, 9 et 10.
+
+VUE 4 : EXPORT
+- Panneau ou fenêtre par-dessus l'éditeur.
+- États : en file d'attente > rendu en cours (barre en %) > terminé.
+- Terminé : bouton Télécharger.
+- Échec : message clair et bouton « Réessayer ».
+
+======================================================================
+8. DISPOSITION DE L'ÉDITEUR
+======================================================================
+
+┌─────────────────────────────────────────────────────────────┐
+│ ALT B-ROLL · mon-projet           (enregistré)   [Exporter] │
+├───────────────────────────────────┬─────────────────────────┤
+│                                   │ SUGGESTIONS (3 à 8)     │
+│              LECTEUR              │ ┌─────────────────────┐ │
+│  <video> source : référence + son │ │ 00:12 -> 00:16      │ │
+│  <video> B-roll : au-dessus, muet │ │ Raison (en FR)      │ │
+│                                   │ │ [c1][c2][c3][c4]    │ │
+│  [Lecture]  00:21 / 01:34         │ │ Début Durée Cadrage │ │
+│                                   │ │ Accepter  Refuser   │ │
+│                                   │ └─────────────────────┘ │
+├───────────────────────────────────┴─────────────────────────┤
+│ TIMELINE  ──[B1]────|────[B2]──────────────[B3]────── 01:34 │
+└─────────────────────────────────────────────────────────────┘
+
+Légende :
+- [B1], [B2], [B3] : les B-rolls placés sur la timeline.
+- | : la tête de lecture.
+- [c1] à [c4] : les vidéos proposées pour une suggestion.
+
+Contenu d'une carte de suggestion :
+- intervalle (début -> fin) ;
+- raison en français : pourquoi un B-roll à cet endroit ;
+- mots-clés de recherche en anglais (en petit, facultatif) ;
+- jusqu'à 4 vidéos proposées : vignette, aperçu muet au survol, clic pour
+  choisir, contour sur la vidéo choisie ;
+- réglages : début, durée, cadrage « Remplir » (cover, recadre l'image)
+  ou « Adapter » (contain, bandes noires) ;
+- actions : accepter, refuser ;
+- provenance : mention « Pixabay » et lien vers la page de la vidéo.
+
+Mise en page :
+- Le cadre du lecteur prend le ratio de la vidéo source
+  (CSS aspect-ratio: largeur / hauteur). Prévoir les vidéos verticales
+  9:16, sans doute fréquentes : le lecteur devient étroit et haut, et le
+  panneau des suggestions peut s'élargir.
+- [PROPOSITION] Ordinateur d'abord pour l'éditeur : un éditeur avec
+  timeline sur téléphone demanderait trop de temps en 3 jours. L'import
+  et le téléchargement peuvent rester utilisables sur mobile.
+
+======================================================================
+9. TIMELINE : RÈGLES
+======================================================================
+
+- La piste représente toute la vidéo. Position d'un élément :
+  temps / durée totale x largeur de la piste.
+- Un clic sur la piste déplace la tête de lecture.
+- Sélection dans les deux sens : un clic sur un bloc sélectionne sa carte
+  et place la lecture au début du B-roll ; un clic sur une carte met son
+  bloc en évidence.
+- Bêta : les champs Début et Durée suffisent. Glisser et redimensionner
+  les blocs à la souris est une amélioration P1.
+- Contraintes à faire respecter :
+  - 0 <= début < fin <= durée de la vidéo ;
+  - pas de chevauchement entre deux B-rolls ;
+  - durée du B-roll <= durée de la vidéo choisie. Si on passe à une vidéo
+    plus courte, réduire la durée ou prévenir.
+- Les temps sont en secondes décimales. Le rendu les aligne sur les
+  images (à 30 images/s, une image dure environ 33 ms).
+- Un B-roll refusé ou désactivé n'apparaît ni dans la preview ni dans
+  l'export : griser son bloc ou le masquer.
+
+======================================================================
+10. PRÉVISUALISATION : RÈGLES TECHNIQUES
+======================================================================
+
+La preview doit montrer exactement ce que l'export produira.
+
+- Deux éléments <video> superposés dans le même cadre :
+  - la vidéo source : référence du temps, seule à avoir le son ;
+  - la vidéo B-roll par-dessus : muted et playsinline, avec en src le
+    previewUrl de la vidéo choisie.
+- Une boucle requestAnimationFrame :
+  - lit source.currentTime ;
+  - trouve le B-roll actif (début <= t < fin, inclus dans le montage) ;
+  - affiche ou masque le calque ;
+  - règle broll.currentTime = t - début.
+  L'événement timeupdate seul est trop lent (environ 4 fois par seconde).
+- Après un changement de src : attendre loadedmetadata avant de régler
+  currentTime, et n'afficher le calque qu'après l'événement seeked, sinon
+  flash noir.
+- Précharger le B-roll suivant quand c'est possible.
+- Gérer la pause, la reprise, les sauts dans la vidéo (seek) et les
+  changements de source.
+- play() renvoie une promesse : gérer le cas où elle est refusée.
+- Gérer les erreurs de lecture d'un B-roll (message sur sa carte).
+- Cadrage :
+  - cover (Remplir) = object-fit: cover ;
+  - contain (Adapter) = object-fit: contain sur fond noir.
+  C'est l'équivalent de ce que fera le rendu FFmpeg.
+- Coupes franches uniquement : le rendu V1 ne prévoit pas de transitions.
+  Aucun fondu ni effet sur le calque B-roll, sinon la preview ne montre
+  pas le vrai résultat.
+
+======================================================================
+11. ANIMATIONS
+======================================================================
+
+Bons endroits :
+- transitions entre les vues ;
+- étapes de l'analyse qui se cochent ;
+- cartes vides animées (skeletons) pendant l'attente des suggestions ;
+- aperçu muet au survol d'une vidéo proposée ;
+- barre de progression du rendu ;
+- indicateur « Enregistré » ;
+- état de réussite de l'export.
+
+À éviter :
+- tout effet sur le calque B-roll dans le lecteur ;
+- les animations lourdes pendant la lecture : rester sur transform et
+  opacity ;
+- déplacer la tête de lecture avec left : utiliser transform.
+
+Respecter prefers-reduced-motion.
+
+Le document maître demande de ne pas passer trop de temps sur les
+animations avant que le parcours import > analyse > export fonctionne.
+
+======================================================================
+12. ÉTATS À PRÉVOIR
+======================================================================
+
+Chaque écran gère quatre cas : en attente, en cours, terminé, échoué.
+
+Statuts de l'analyse : idle, queued, processing, completed, failed.
+Statuts du rendu : idle, queued, rendering, completed, failed.
+Les deux sont indépendants.
+
+[PROPOSITION] Pendant processing, GET /status renvoie aussi l'étape en
+cours (audio, transcription, keyframes, analysis, search) pour cocher les
+étapes de la vue Analyse.
+
+Analyse visuelle : si visualAnalysisAvailable vaut false, indiquer que
+les suggestions viennent du texte seul. Ne jamais laisser croire que les
+images ont été analysées.
+
+Cas vides :
+- aucune suggestion trouvée ;
+- une suggestion sans aucune vidéo trouvée sur Pixabay.
+
+Réseau : si un appel échoue, réessayer et afficher « Connexion perdue »
+au lieu de bloquer l'écran.
+
+Rechargement de la page : garder l'identifiant du projet (localStorage)
+pour reprendre là où on en était (analyse, édition ou rendu en cours).
+
+Erreurs : le backend renvoie { code, stage, message }.
+- Afficher message (lisible, en français).
+- Utiliser code pour choisir l'action, par exemple VIDEO_TOO_LONG ->
+  retour à l'import. [PROVISOIRE] La liste des codes sera dans
+  docs/API.md.
+- Le navigateur ne reçoit jamais de clé, de chemin serveur ni de trace
+  technique.
+
+======================================================================
+13. DONNÉES AFFICHÉES PAR LE FRONTEND [PROVISOIRE]
+======================================================================
+
+Les noms définitifs seront dans shared/contract.ts. Exemple de projet :
+
+{
+  "id": "prj_8f3a",
+  "revision": 4,
+  "source": {
+    "durationSeconds": 94.2,
+    "width": 1080,
+    "height": 1920,
+    "frameRate": 30
+  },
+  "analysis": { "status": "completed", "visualAnalysisAvailable": true },
+  "brollItems": [
+    {
+      "id": "br_1",
+      "startSeconds": 12.4,
+      "endSeconds": 16.0,
+      "reason": "Il parle des embouteillages du matin",
+      "searchQuery": "traffic jam city morning",
+      "status": "suggested",
+      "enabled": true,
+      "fit": "cover",
+      "selectedCandidateId": "cand_2",
+      "candidates": [
+        {
+          "id": "cand_2",
+          "provider": "pixabay",
+          "thumbnailUrl": "https://...",
+          "previewUrl": "https://...",
+          "sourcePageUrl": "https://...",
+          "durationSeconds": 18
+        }
+      ]
+    }
+  ],
+  "render": { "status": "idle", "progress": 0 },
+  "errors": []
+}
+
+Champs utiles :
+- source : durée, dimensions (pour le ratio du lecteur), images/s.
+- brollItems[] : une entrée par B-roll.
+  - startSeconds et endSeconds : l'intervalle (durée = fin - début).
+  - reason : raison en français ; searchQuery : mots-clés en anglais.
+  - candidates[] : jusqu'à 4 vidéos ; selectedCandidateId : la vidéo
+    choisie.
+  - fit : cover ou contain.
+  - enabled : dans le montage ou non (preview et export).
+  - status : suggested, accepted ou rejected.
+- render : statut et progression du rendu.
+- errors[] : erreurs structurées.
+- revision : numéro de version du montage, à renvoyer à chaque
+  sauvegarde.
+
+[PROPOSITION] Les suggestions sont incluses dans le montage par défaut ;
+l'utilisateur retire celles qu'il ne veut pas.
+
+======================================================================
+14. API ET ENCHAÎNEMENT DES APPELS
+======================================================================
+
+Endpoints :
+POST  /api/projects                    crée un projet
+POST  /api/projects/:id/upload         envoie la vidéo
+POST  /api/projects/:id/analyze        lance l'analyse
+GET   /api/projects/:id                projet complet
+GET   /api/projects/:id/status         état de l'analyse
+GET   /api/projects/:id/suggestions    suggestions et candidats
+PATCH /api/projects/:id/timeline       sauvegarde des choix
+POST  /api/projects/:id/render         lance le rendu
+GET   /api/projects/:id/render/status  état du rendu
+GET   /api/projects/:id/download       télécharge le MP4 final
+
+Par vue :
+- Import : POST /api/projects, puis POST .../upload (multipart).
+  Utiliser XMLHttpRequest pour suivre la progression de l'envoi (fetch ne
+  la donne pas).
+- Analyse : POST .../analyze, puis GET .../status toutes les 2 s environ.
+- Éditeur : GET /api/projects/:id, puis PATCH .../timeline avec la
+  dernière revision reçue. Sauvegarde automatique environ 1 s après
+  chaque modification. [PROPOSITION] Le serveur refuse une revision
+  périmée ; le frontend recharge alors le projet.
+- Export : POST .../render une fois la dernière sauvegarde confirmée,
+  puis GET .../render/status en boucle, puis un lien vers
+  GET .../download.
+
+Configuration :
+- URL du backend dans une constante en haut du fichier HTML.
+- Le backend autorise l'adresse du frontend (variable FRONTEND_ORIGIN,
+  par exemple http://localhost:5500 en local).
+- Tant que le backend n'est pas prêt : travailler avec un projet fictif
+  comme l'exemple de la section 13, clairement marqué comme mock.
+
+Les formats exacts (requêtes, réponses, codes HTTP) seront dans
+docs/API.md.
+
+======================================================================
+15. SÉCURITÉ CÔTÉ FRONTEND
+======================================================================
+
+- Aucune clé API dans le frontend.
+- N'envoyer que des identifiants (projet, B-roll, candidat), jamais de
+  chemin de fichier.
+- Utiliser uniquement les URL renvoyées par le backend, ne pas en
+  fabriquer.
+- Afficher les textes reçus (nom du fichier, raisons de l'IA) avec
+  textContent, pas innerHTML.
+- Mentionner Pixabay comme source partout où ses vidéos sont affichées
+  (règle de l'API Pixabay).
+
+======================================================================
+16. PLANNING ET PRIORITÉS
+======================================================================
+
+Mercredi 18 novembre :
+- Contrat commun shared/contract.ts et dossiers de base.
+- Claude : initialisation du backend et des endpoints essentiels.
+- Codex : premier rendu FFmpeg avec une vidéo et un B-roll local.
+- OpenCode : vidéo de test et projet JSON de test.
+- Alex : début de l'interface avec des données fictives.
+
+Jeudi 19 novembre :
+- Claude : upload, validation, SQLite, transcription, analyse.
+- Codex : worker, rendu de la timeline, conservation du son.
+- OpenCode : tests du contrat, fixtures, premiers tests de sécurité.
+- Alex : import, lecteur, liste des suggestions, timeline simplifiée.
+
+Vendredi 20 novembre :
+- Intégration backend, frontend et renderer.
+- Test du parcours réel avec Groq, OpenRouter et Pixabay.
+- Test du rendu complet et correction des bugs bloquants.
+- Pas de nouvelle fonctionnalité importante en fin de journée.
+
+Samedi 21 novembre :
+- Tests finaux, déploiement du frontend, démarrage du backend et du
+  worker.
+- Parcours complet depuis l'interface.
+- Ouverture à quelques testeurs si les critères sont remplis.
+
+Dimanche 22 novembre :
+- Marge de sécurité : derniers bugs bloquants, pas de refonte.
+
+Priorités :
+- P0 : importer une vidéo, obtenir la transcription, produire les
+  suggestions, prévisualiser, exporter un MP4 valide avec le son
+  original.
+- P1 : remplacer facilement les candidats, améliorer le cadrage et la
+  timeline.
+- P2 : design et animations, Pexels ou HyperFrames.
+- P3 : comptes, abonnements, fonctions avancées.
+Si le temps manque : couper P2 et P3, jamais les tests du parcours P0.
+
+======================================================================
+17. CRITÈRES POUR OUVRIR LA BÊTA
+======================================================================
+
+Import :
+[ ] Une vidéo MP4 valide peut être importée.
+[ ] Une vidéo trop volumineuse est rejetée.
+[ ] Une vidéo trop longue est rejetée.
+[ ] Un fichier invalide est rejeté proprement.
+
+Analyse :
+[ ] La transcription est réelle et vient de Groq.
+[ ] Les erreurs des API sont gérées.
+[ ] L'analyse visuelle est réellement faite quand elle est annoncée.
+[ ] Les suggestions sont cohérentes avec la vidéo.
+[ ] Pixabay renvoie de vrais candidats.
+[ ] Les alternatives sont consultables.
+
+Édition :
+[ ] On peut accepter ou refuser un B-roll.
+[ ] On peut remplacer la vidéo choisie.
+[ ] On peut ajuster le début et la durée.
+[ ] Les modifications sont sauvegardées.
+[ ] La preview respecte les réglages de la timeline.
+
+Rendu :
+[ ] Le worker prend la tâche.
+[ ] Le MP4 final est produit.
+[ ] Les B-rolls sont aux bons moments, avec le bon cadrage.
+[ ] Le son original est conservé.
+[ ] ffprobe valide le fichier final.
+[ ] Le téléchargement fonctionne.
+
+Sécurité :
+[ ] Aucune clé API dans le frontend.
+[ ] Aucun chemin serveur arbitraire accepté.
+[ ] Les fichiers sont isolés par projet.
+[ ] Les erreurs ne révèlent pas de secrets.
+[ ] Les téléchargements sont contrôlés.
+
+Expérience :
+[ ] Les états de chargement sont compréhensibles.
+[ ] Les erreurs sont visibles et utiles.
+[ ] On va de l'import au téléchargement sans l'aide d'un développeur.
+
+Un seul défaut P0 bloque l'ouverture de la bêta.
+
+======================================================================
+18. DÉCISIONS EN ATTENTE
+======================================================================
+
+1. Dossier racine : le document maître dit alt-hol/, le dossier actuel
+   s'appelle Alt.roll. Claude recommande d'utiliser Alt.roll comme
+   racine.
+2. shared/contract.ts : Claude prépare un brouillon, Alex le valide avant
+   que Codex et OpenCode s'en servent.
+3. Format des tâches de rendu (table SQLite et verrou) : Claude propose
+   de le placer aussi dans shared/, car le backend et le worker
+   l'utilisent tous les deux.
+4. Suggestions incluses par défaut dans le montage (section 13).
+5. Ordinateur d'abord pour l'éditeur (section 8).
+6. Accès à la bêta : limiter l'usage aux testeurs et protéger les projets
+   sans système de comptes complexe. Proposition de Claude : un jeton
+   propre à chaque projet, renvoyé à la création et envoyé à chaque
+   appel, plus éventuellement un code d'accès par testeur. Si le code
+   d'accès est retenu, ajouter la vue 0 (section 7).
+7. Git : le dossier n'est pas encore un dépôt. Claude propose un git init,
+   sans commit.
+
+FIN DU DOCUMENT
