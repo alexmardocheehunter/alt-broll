@@ -36,7 +36,7 @@ npm run fixtures          # génère les fixtures média manquantes
 npm run fixtures:force    # régénère tout et réécrit le manifeste SHA-256
 ```
 
-Les tests d'intégration démarrent le **vrai** `backend/src/server.ts` : compter environ 10 s pour la suite complète.
+Les tests d'intégration démarrent le **vrai** `backend/src/server.ts` : compter environ 40 s pour la suite complète, dont le parcours de rendu avec le worker.
 
 ## Arborescence
 
@@ -76,8 +76,8 @@ Les validateurs de `lib/validation/` comblent un manque : `shared/contract.ts` n
 
 ### `integration/` : le backend tel qu'il tourne
 
-- `backend.test.ts` : socle (health, config, schéma SQLite, logs), routes projets livrées, et baseline 404 des routes encore attendues.
-- `journey.test.ts` : parcours P0 (création, import, refus d'import, streaming Range, analyse sans clé). Le parcours complet est `skip` tant qu'aucun mode fournisseur hors ligne n'existe.
+- `backend.test.ts` : socle (health, config, schéma SQLite, logs), routes projets livrées, et baseline 404 de la seule route encore attendue (`DELETE`, D-11).
+- `journey.test.ts` : parcours P0 complet hors ligne — création, import, refus d'import, streaming Range, analyse simulée (`PROVIDER_MODE=mock`), suggestions, édition de timeline, rendu par le worker Codex `--once`, téléchargement et vérification ffprobe du MP4 final.
 - `backend-units.test.ts` : services backend importés directement (projets, révisions, timeline D-06, `RenderState`, ffprobe, stockage). Ces tests donnent à Claude un retour avant même le branchement HTTP.
 
 Le lanceur `lib/backend-server.ts` :
@@ -107,7 +107,7 @@ Le lanceur `lib/backend-server.ts` :
 1. La route est absente : `backend.test.ts` vérifie une **404 structurée** sur un vrai projet.
 2. Claude livre la route : ce test échoue volontairement avec « semble implémentée ».
 3. OpenCode remplace la baseline par les assertions de contrat, puis complète `journey.test.ts`.
-4. Quand un mode fournisseur hors ligne sera fourni, le parcours complet sera activé.
+4. Le mode `PROVIDER_MODE=mock` (refusé en production) permet de jouer le parcours complet sans réseau, worker inclus.
 
 ## Dépannage
 

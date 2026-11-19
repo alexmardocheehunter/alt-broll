@@ -2,11 +2,13 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   SCHEMA_VERSION,
   type Analysis,
+  type AnalysisStatus,
   type BrollItem,
   type SchemaVersion,
   type SourceVideo,
   type Transcript,
 } from '../contract.ts';
+import { ACTIVE_STATUSES } from './job.repository.ts';
 
 /** Contenu stocké dans projects.document ; identité, dates et révision sont en colonnes. */
 export interface ProjectDocument {
@@ -14,7 +16,14 @@ export interface ProjectDocument {
   transcript: Transcript | null;
   analysis: Analysis;
   brollItems: BrollItem[];
+  /**
+   * Compte propriétaire (uid Firebase) quand la connexion Google est activée (AUTH_MODE=firebase).
+   * Absent sinon. Jamais renvoyé par l'API.
+   */
+  ownerId?: string;
 }
+
+export type RemoveResult = 'deleted' | 'not_found' | 'render_active';
 
 export interface ProjectRecord {
   readonly id: string;
@@ -30,6 +39,13 @@ export interface ProjectRepository {
   findById(id: string): ProjectRecord | null;
   /** Écrit le document si la révision n'a pas changé (revision + 1) ; null sinon (conflit ou projet absent). */
   update(id: string, expectedRevision: number, document: ProjectDocument, nowMs: number): ProjectRecord | null;
+  /** Projets dont l'analyse est dans l'un de ces statuts (reprise après un arrêt du serveur). */
+  listIdsByAnalysisStatus(statuses: readonly AnalysisStatus[]): string[];
+  /**
+   * Supprime le projet et l'historique de ses exports, en une transaction. Refusé si un export
+   * est en préparation, en file ou en cours : le worker pourrait encore écrire.
+   */
+  remove(id: string): RemoveResult;
 }
 
 type ProjectRow = {
@@ -52,6 +68,16 @@ export function createProjectRepository(db: DatabaseSync): ProjectRepository {
         SET document = :document, revision = revision + 1, updated_at_ms = :nowMs
       WHERE id = :id AND revision = :expectedRevision`,
   );
+  const byAnalysisStatusStatement = db.prepare(
+    `SELECT id FROM projects
+      WHERE json_extract(document, '$.analysis.status') IN (SELECT value FROM json_each(?))
+      ORDER BY created_at_ms`,
+  );
+  const activeRenderStatement = db.prepare(
+    `SELECT 1 AS active FROM render_jobs WHERE project_id = ? AND status IN ${ACTIVE_STATUSES} LIMIT 1`,
+  );
+  const deleteJobsStatement = db.prepare('DELETE FROM render_jobs WHERE project_id = ?');
+  const deleteStatement = db.prepare('DELETE FROM projects WHERE id = ?');
 
   function findById(id: string): ProjectRecord | null {
     const row = selectStatement.get(id) as ProjectRow | undefined;
@@ -69,6 +95,27 @@ export function createProjectRepository(db: DatabaseSync): ProjectRepository {
     update(id, expectedRevision, document, nowMs) {
       const result = updateStatement.run({ id, expectedRevision, document: JSON.stringify(document), nowMs });
       return Number(result.changes) === 1 ? findById(id) : null;
+    },
+    listIdsByAnalysisStatus(statuses) {
+      return byAnalysisStatusStatement.all(JSON.stringify(statuses)).map((row) => String(row.id));
+    },
+    remove(id) {
+      // IMMEDIATE : le worker ne peut pas prendre un job entre la vérification et la suppression.
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        let result: RemoveResult = 'deleted';
+        if (activeRenderStatement.get(id) !== undefined) {
+          result = 'render_active';
+        } else {
+          deleteJobsStatement.run(id);
+          if (Number(deleteStatement.run(id).changes) !== 1) result = 'not_found';
+        }
+        db.exec(result === 'deleted' ? 'COMMIT' : 'ROLLBACK');
+        return result;
+      } catch (error) {
+        if (db.isTransaction) db.exec('ROLLBACK');
+        throw error;
+      }
     },
   };
 }

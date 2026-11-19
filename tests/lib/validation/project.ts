@@ -8,6 +8,7 @@ import {
   RENDER_STATUSES,
   SCHEMA_VERSION,
   TIMELINE_RULES,
+  TRANSCRIPTION_PROVIDERS,
   type AnalysisStage,
   type BrollFit,
   type BrollItemStatus,
@@ -228,7 +229,7 @@ function validateTranscript(value: unknown, path: string, sourceDuration: number
   if (transcript === null) return;
 
   requireKeys(transcript, path, TRANSCRIPT_KEYS, [], problems);
-  readString(transcript, 'provider', path, problems, { pattern: /^groq$/ });
+  readOneOf(transcript, 'provider', path, problems, TRANSCRIPTION_PROVIDERS);
   readString(transcript, 'model', path, problems, { maxLength: 64 });
   readString(transcript, 'language', path, problems, { pattern: /^[a-z]{2}(?:-[A-Z]{2})?$/ });
   readString(transcript, 'text', path, problems);
@@ -631,7 +632,9 @@ function validateRender(
     if (completedAt !== null) problems.add(`${path}.completedAt`, 'doit être null quand status = idle');
   } else {
     if (jobId === null) problems.add(`${path}.jobId`, 'doit être renseigné dès qu’un job existe');
-    if (startedAt === null) problems.add(`${path}.startedAt`, 'doit être renseigné dès qu’un job existe');
+    if (status !== 'preparing' && status !== 'queued' && startedAt === null) {
+      problems.add(`${path}.startedAt`, 'doit être renseigné dès que le worker a pris le job');
+    }
   }
 
   if (status === 'completed') {

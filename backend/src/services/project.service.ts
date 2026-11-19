@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { MediaUrlSigner, SignedResource } from '../auth/media-url.ts';
 import type { AppConfig } from '../config/env.ts';
 import {
   ID_PATTERN,
@@ -14,7 +15,8 @@ import { toRenderState } from './render-state.ts';
 import { buildTimeline } from './timeline.service.ts';
 
 export interface ProjectService {
-  create(): Project;
+  /** Nouveau projet vide ; `ownerId` : compte connecté (AUTH_MODE=firebase), null sinon. */
+  create(ownerId?: string | null): Project;
   /** Projet existant, sinon 404 (y compris pour un identifiant mal formé). */
   requireRecord(id: string): ProjectRecord;
   /** Enregistre un nouveau document si personne n'a modifié le projet depuis `record` ; sinon 409. */
@@ -30,6 +32,8 @@ export interface ProjectServiceDeps {
   readonly projects: ProjectRepository;
   readonly renderJobs: RenderJobRepository;
   readonly now?: () => number;
+  /** Connexion activée : urls.source et urls.download deviennent des liens signés. */
+  readonly mediaUrls?: MediaUrlSigner | null;
 }
 
 export function initialAnalysis(): Analysis {
@@ -55,7 +59,7 @@ export function projectNotFound(): AppError {
   });
 }
 
-export function createProjectService({ config, projects, renderJobs, now = Date.now }: ProjectServiceDeps): ProjectService {
+export function createProjectService({ config, projects, renderJobs, now = Date.now, mediaUrls = null }: ProjectServiceDeps): ProjectService {
   function requireRecord(id: string): ProjectRecord {
     const record = ID_PATTERN.test(id) ? projects.findById(id) : null;
     if (record === null) throw projectNotFound();
@@ -66,6 +70,7 @@ export function createProjectService({ config, projects, renderJobs, now = Date.
     const { document } = record;
     const render = toRenderState(renderJobs.latestForProject(record.id));
     const baseUrl = `${config.appBaseUrl}/api/projects/${record.id}`;
+    const signed = (resource: SignedResource): string => (mediaUrls === null ? '' : `?${mediaUrls.query(record.id, resource)}`);
     return {
       id: record.id,
       schemaVersion: record.schemaVersion,
@@ -79,22 +84,31 @@ export function createProjectService({ config, projects, renderJobs, now = Date.
       timeline: buildTimeline(document.brollItems),
       render,
       urls: {
-        source: document.source === null ? null : `${baseUrl}/media/source`,
-        download: render.status === 'completed' ? `${baseUrl}/download` : null,
+        source: document.source === null ? null : `${baseUrl}/media/source${signed('source')}`,
+        download: render.status === 'completed' ? `${baseUrl}/download${signed('download')}` : null,
       },
     };
   }
 
   return {
-    create() {
-      const document: ProjectDocument = { source: null, transcript: null, analysis: initialAnalysis(), brollItems: [] };
+    create(ownerId = null) {
+      const document: ProjectDocument = {
+        source: null,
+        transcript: null,
+        analysis: initialAnalysis(),
+        brollItems: [],
+        ...(ownerId === null ? {} : { ownerId }),
+      };
       return toProject(projects.insert(randomUUID(), document, now()));
     },
 
     requireRecord,
 
     save(record, document) {
-      const saved = projects.update(record.id, record.revision, document, now());
+      // Le propriétaire ne change jamais, quel que soit le document fourni.
+      const { ownerId } = record.document;
+      const kept = ownerId === undefined ? document : { ...document, ownerId };
+      const saved = projects.update(record.id, record.revision, kept, now());
       if (saved !== null) return saved;
       if (projects.findById(record.id) === null) throw projectNotFound();
       throw new AppError({

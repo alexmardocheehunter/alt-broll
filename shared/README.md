@@ -1,7 +1,7 @@
 # shared/ : contrat commun ALT B-ROLL
 
-> **Statut : proposition v1 du 18/11/2026, préparée par Claude Code, à valider par Alex** (propriétaire du dossier).
-> Toute modification se propose avant d'être appliquée (PROJECT_MASTER §6 et §11). Points ouverts : [docs/DECISIONS.md](../docs/DECISIONS.md).
+> **Statut : v1 adoptée le 18/11/2026** (rédigée par Claude Code, choix délégués par Alex, propriétaire du dossier). Décisions : [docs/DECISIONS.md](../docs/DECISIONS.md).
+> Toute modification se propose avant d'être appliquée (PROJECT_MASTER §6 et §11).
 
 | Fichier | Rôle |
 |---|---|
@@ -26,9 +26,10 @@ Le frontend (JavaScript) ne l'importe pas : il s'en sert comme spécification, a
 
 1. **Temps** en secondes sur l'axe de la vidéo source, intervalles `[début, fin[`, arrondis à la milliseconde.
 2. **Source de vérité** : le projet, stocké en SQLite. `timeline`, `render` et `urls` sont calculés par le backend et jamais envoyés par le client.
-3. **Règle d'inclusion** (preview = export, proposition D-06) : un B-roll est monté si `enabled && status !== 'rejected' && selectedCandidateId !== null`. Le frontend utilise `project.timeline.segments` pour la preview ; le worker reçoit les mêmes segments.
+3. **Règle d'inclusion** (preview = export, décision D-06) : un B-roll est monté si `enabled && status !== 'rejected' && selectedCandidateId !== null`. Le frontend utilise `project.timeline.segments` pour la preview ; le worker reçoit les mêmes segments.
 4. **Statuts** d'analyse et de rendu indépendants. **Erreurs** `{ code, stage, message, retryable }`, sans secret ni chemin serveur.
 5. **Révision** : chaque écriture incrémente `revision`. `PATCH timeline` et `POST render` envoient la révision connue, sinon `409 REVISION_CONFLICT`.
+6. **Simulation** : `provider = 'simulation'` (transcription, candidats B-roll) n'apparaît qu'en mode de test hors ligne (`PROVIDER_MODE=mock`, refusé en production, décision D-15). En usage réel : `groq` et `pixabay`.
 
 ## Protocole des jobs de rendu (backend ↔ worker)
 
@@ -51,7 +52,7 @@ Base commune : `DATABASE_PATH`, lue dans le même `.env` à la racine. Le backen
 - Fichiers : `<STORAGE_ROOT>/projects/<projectId>/` + chemin relatif du payload. Le worker vérifie `PROJECT_RELATIVE_FILE_PATTERN` **et** que le chemin résolu reste dans ce dossier. Il écrit un fichier temporaire, puis le renomme en `output.file` après validation.
 - Ces requêtes sont exécutées par `backend/test/database.test.ts` : prise unique, ordre, limite de rendus, détenteur du job, bail expiré.
 
-## Règles de rendu (proposition D-07)
+## Règles de rendu (décision D-07)
 
 Détail dans le commentaire « RÈGLES DE RENDU » de `contract.ts` : audio de la source uniquement ; B-roll lu depuis son début ; `cover` = recadrage centré, `contain` = bandes noires ; segment limité à la durée du média choisi (dernière image figée seulement pour l'écart d'arrondi) ; aucun chevauchement ; temps alignés sur la frame ; MP4 H.264/AAC avec faststart.
 

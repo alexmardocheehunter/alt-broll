@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { AUTH_MODES } from '../contract.ts';
 
 /** Racine du projet ALT B-ROLL : le dossier qui contient .env, backend/ et shared/. */
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
@@ -13,6 +14,14 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export const RENDER_SHORT_SIDES = [720, 1080] as const;
 export type RenderShortSide = (typeof RENDER_SHORT_SIDES)[number];
+
+/** live : vrais services. mock : fournisseurs simulés pour les tests hors ligne (QA-002), refusé en production. */
+export const PROVIDER_MODES = ['live', 'mock'] as const;
+export type ProviderMode = (typeof PROVIDER_MODES)[number];
+
+/** Identifiant de projet Firebase : 6 à 30 caractères, minuscules, chiffres et tirets. */
+const FIREBASE_PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+const MIN_MEDIA_URL_SECRET_LENGTH = 32;
 
 const BYTES_PER_MB = 1024 * 1024;
 const IN_MEMORY_DATABASE = ':memory:';
@@ -42,6 +51,7 @@ const envSchema = z.object({
   GROQ_TRANSCRIPTION_MODEL: nonEmpty().default('whisper-large-v3-turbo'),
   OPENROUTER_API_KEY: nonEmpty().optional(),
   OPENROUTER_MODEL: nonEmpty().optional(),
+  OPENROUTER_FALLBACK_MODEL: nonEmpty().optional(),
   PIXABAY_API_KEY: nonEmpty().optional(),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(2048).default(150),
   MIN_VIDEO_DURATION_SECONDS: z.coerce.number().min(1).max(3600).default(5),
@@ -49,6 +59,13 @@ const envSchema = z.object({
   RENDER_MAX_SHORT_SIDE: z.coerce.number().pipe(z.literal(RENDER_SHORT_SIDES)).default(1080),
   RATE_LIMIT_WRITES_PER_HOUR: z.coerce.number().int().min(1).max(100_000).default(60),
   TRUST_PROXY: nonEmpty().optional(),
+  PROVIDER_MODE: z.enum(PROVIDER_MODES).default('live'),
+  TRANSCRIPTION_LANGUAGE: nonEmpty().default('fr'),
+  MAX_ANALYSES_PER_DAY: z.coerce.number().int().min(1).max(100_000).default(50),
+  FFMPEG_FONT_FILE: nonEmpty().optional(),
+  AUTH_MODE: z.enum(AUTH_MODES).default('none'),
+  FIREBASE_PROJECT_ID: nonEmpty().optional(),
+  MEDIA_URL_SECRET: nonEmpty().optional(),
 });
 
 /** Réglage Express « trust proxy » : false, 'loopback' (tunnel sur la même machine) ou nombre de proxys. */
@@ -70,10 +87,26 @@ export interface AppConfig {
     readonly databasePath: string;
     readonly storageRoot: string;
   };
-  readonly binaries: { readonly ffmpeg: string; readonly ffprobe: string };
+  readonly binaries: {
+    readonly ffmpeg: string;
+    readonly ffprobe: string;
+    /** Police des horodatages de la planche contact ; détectée automatiquement si absente. */
+    readonly fontFile: string | undefined;
+  };
   readonly providers: {
-    readonly groq: { readonly apiKey: string | undefined; readonly transcriptionModel: string };
-    readonly openRouter: { readonly apiKey: string | undefined; readonly model: string | undefined };
+    readonly mode: ProviderMode;
+    readonly groq: {
+      readonly apiKey: string | undefined;
+      readonly transcriptionModel: string;
+      /** Langue imposée à Whisper (ISO 639-1), ou null pour la détection automatique. */
+      readonly language: string | null;
+    };
+    readonly openRouter: {
+      readonly apiKey: string | undefined;
+      readonly model: string | undefined;
+      /** Essayés dans l'ordre si `model` est indisponible (OPENROUTER_FALLBACK_MODEL, séparés par des virgules). */
+      readonly fallbackModels: readonly string[];
+    };
     readonly pixabay: { readonly apiKey: string | undefined };
   };
   readonly limits: {
@@ -83,7 +116,18 @@ export interface AppConfig {
     readonly renderMaxShortSide: RenderShortSide;
     /** Créations de projet, imports, analyses et exports par heure et par adresse IP. */
     readonly writesPerHour: number;
+    /** Analyses lancées sur 24 h glissantes, tous utilisateurs confondus : borne le coût des API. */
+    readonly analysesPerDay: number;
   };
+  /** Connexion Google (D-04) : désactivée par défaut. */
+  readonly auth:
+    | { readonly mode: 'none' }
+    | {
+        readonly mode: 'firebase';
+        readonly firebaseProjectId: string;
+        /** Clé HMAC des liens signés (lecteur vidéo, téléchargement). Jamais journalisée. */
+        readonly mediaUrlSecret: string;
+      };
 }
 
 /** Configuration invalide : le message liste les variables en cause, jamais leurs valeurs. */
@@ -134,11 +178,17 @@ export function loadConfig(
   if (values.MIN_VIDEO_DURATION_SECONDS >= values.MAX_VIDEO_DURATION_SECONDS) {
     issues.push('MIN_VIDEO_DURATION_SECONDS : doit être inférieure à MAX_VIDEO_DURATION_SECONDS');
   }
+  const transcriptionLanguage = values.TRANSCRIPTION_LANGUAGE === 'auto' ? null : values.TRANSCRIPTION_LANGUAGE;
+  if (transcriptionLanguage !== null && !/^[a-z]{2}$/.test(transcriptionLanguage)) {
+    issues.push('TRANSCRIPTION_LANGUAGE : code de langue à deux lettres (ex. fr) ou auto');
+  }
   if (values.NODE_ENV === 'production') {
+    if (values.PROVIDER_MODE === 'mock') issues.push('PROVIDER_MODE : « mock » (fournisseurs simulés) est interdit en production');
     for (const key of REQUIRED_IN_PRODUCTION) {
       if (values[key] === undefined) issues.push(`${key} : obligatoire en production`);
     }
   }
+  const auth = parseAuth(values, issues);
   if (issues.length > 0) throw new ConfigError(issues);
 
   return deepFreeze({
@@ -157,10 +207,26 @@ export function loadConfig(
           : path.resolve(projectRoot, values.DATABASE_PATH),
       storageRoot: path.resolve(projectRoot, values.STORAGE_ROOT),
     },
-    binaries: { ffmpeg: values.FFMPEG_PATH, ffprobe: values.FFPROBE_PATH },
+    binaries: {
+      ffmpeg: values.FFMPEG_PATH,
+      ffprobe: values.FFPROBE_PATH,
+      fontFile: values.FFMPEG_FONT_FILE === undefined ? undefined : path.resolve(projectRoot, values.FFMPEG_FONT_FILE),
+    },
     providers: {
-      groq: { apiKey: values.GROQ_API_KEY, transcriptionModel: values.GROQ_TRANSCRIPTION_MODEL },
-      openRouter: { apiKey: values.OPENROUTER_API_KEY, model: values.OPENROUTER_MODEL },
+      mode: values.PROVIDER_MODE,
+      groq: {
+        apiKey: values.GROQ_API_KEY,
+        transcriptionModel: values.GROQ_TRANSCRIPTION_MODEL,
+        language: transcriptionLanguage,
+      },
+      openRouter: {
+        apiKey: values.OPENROUTER_API_KEY,
+        model: values.OPENROUTER_MODEL,
+        fallbackModels: (values.OPENROUTER_FALLBACK_MODEL ?? '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id !== ''),
+      },
       pixabay: { apiKey: values.PIXABAY_API_KEY },
     },
     limits: {
@@ -169,8 +235,22 @@ export function loadConfig(
       maxVideoDurationSeconds: values.MAX_VIDEO_DURATION_SECONDS,
       renderMaxShortSide: values.RENDER_MAX_SHORT_SIDE,
       writesPerHour: values.RATE_LIMIT_WRITES_PER_HOUR,
+      analysesPerDay: values.MAX_ANALYSES_PER_DAY,
     },
+    auth,
   });
+}
+
+function parseAuth(values: z.infer<typeof envSchema>, issues: string[]): AppConfig['auth'] {
+  if (values.AUTH_MODE === 'none') return { mode: 'none' };
+  const projectId = values.FIREBASE_PROJECT_ID;
+  const secret = values.MEDIA_URL_SECRET;
+  if (projectId === undefined) issues.push('FIREBASE_PROJECT_ID : obligatoire avec AUTH_MODE=firebase');
+  else if (!FIREBASE_PROJECT_ID_PATTERN.test(projectId)) issues.push('FIREBASE_PROJECT_ID : identifiant de projet Firebase invalide');
+  if (secret === undefined || secret.length < MIN_MEDIA_URL_SECRET_LENGTH) {
+    issues.push(`MEDIA_URL_SECRET : au moins ${MIN_MEDIA_URL_SECRET_LENGTH} caractères aléatoires avec AUTH_MODE=firebase`);
+  }
+  return { mode: 'firebase', firebaseProjectId: projectId ?? '', mediaUrlSecret: secret ?? '' };
 }
 
 /** Fournisseurs utilisables (clé présente, et modèle pour OpenRouter). Ne révèle aucune valeur. */

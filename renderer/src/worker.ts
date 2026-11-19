@@ -148,7 +148,15 @@ async function processJob(row: RenderJobRow) {
   } finally { clearInterval(timer); if (outputTemp) { try { const { unlinkSync } = await import('node:fs'); unlinkSync(outputTemp); } catch { /* absent */ } } }
 }
 let stopping = false;
+const once = process.argv.includes('--once');
 process.on('SIGINT', () => { stopping = true; }); process.on('SIGTERM', () => { stopping = true; });
 console.log(`ALT B-ROLL renderer started (${workerId})`);
-while (!stopping) { const job = claim(); if (job) await processJob(job); else await sleep(1000); }
+while (!stopping) {
+  const job = claim();
+  if (job) {
+    await processJob(job);
+    if (once) break;
+  } else if (once) break;
+  else await sleep(1000);
+}
 db.close();

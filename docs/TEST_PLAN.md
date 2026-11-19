@@ -1,6 +1,6 @@
 # Plan de test : ALT B-ROLL
 
-> Version 1.0 · 18/11/2026 · OpenCode (QA)
+> Version 1.1 · 19/11/2026 · OpenCode (QA)
 > Référence : `PROJECT_MASTER.txt` §9 (responsabilités OpenCode). Ce plan décrit ce qui est vérifié, comment, et ce qui bloque encore.
 
 ## 1. Objectif et périmètre
@@ -63,10 +63,12 @@
 | Socle | health, config publique, schéma SQLite, WAL, stockage, logs sans secret | ✅ |
 | Projets | création, relecture, statut, suggestions, projet inconnu | ✅ |
 | Import | MP4 valide, métadonnées ffprobe, streaming Range, refus durée/audio/codec/signature/type/taille, formulaire vide, champ erroné | ✅ |
-| Analyse | refus sans fournisseur (`PROVIDER_NOT_CONFIGURED`) | ⏳ route absente |
-| Timeline | PATCH, conflit de révision, chevauchement | ⏳ route absente |
-| Rendu | démarrage, statut, échec, téléchargement | ⏳ routes absentes |
-| Suppression | DELETE projet et fichiers | ⏳ route absente |
+| Analyse | refus sans fournisseur (`PROVIDER_NOT_CONFIGURED`), parcours simulé `PROVIDER_MODE=mock` (202 → completed, transcription et suggestions marquées) | ✅ |
+| Timeline | PATCH, conflit de révision, chevauchement, candidat inconnu, désactivation | ✅ |
+| Rendu | démarrage `preparing`, préparation des médias, statut, révision périmée, montage vide, worker `--once`, téléchargement final | ✅ |
+| Suppression | DELETE projet et fichiers | ⏳ route absente (D-11) |
+
+Le parcours P0 complet est joué hors ligne dans `integration/journey.test.ts` : `PROVIDER_MODE=mock` pour l'analyse, puis le worker Codex `--once` sur la même base et le même stockage temporaires pour produire le MP4 final, vérifié par ffprobe (dimensions, durée, audio conservé).
 
 Les tests d'import utilisent le **vrai** serveur, une base et un stockage temporaires, et des clés fournisseur forcées à vide.
 
@@ -89,7 +91,7 @@ Exécution des requêtes `RENDER_JOB_SQL` sur SQLite en mémoire :
 - `complete` / `fail` : transitions valides, bail libéré, message sans chemin ;
 - `recoverStale` : reprise tant qu'il reste une tentative, puis `RENDER_WORKER_LOST`.
 
-**Limite :** le worker réel (Codex) n'existe pas ; ces tests figent la sémantique, pas son implémentation.
+**Compatibilité :** le worker réel est livré (`renderer/src/worker.ts`) et exécuté par QA en mode `--once` dans le parcours d'intégration ; ces tests figent en plus la sémantique SQL partagée.
 
 ### 3.6 Sécurité (`tests/security/`)
 
@@ -118,12 +120,12 @@ Exécution des requêtes `RENDER_JOB_SQL` sur SQLite en mémoire :
 | Fichier trop volumineux / trop long | `journey.test.ts` | ✅ |
 | Vidéo sans audio | `journey.test.ts` | ✅ |
 | Projet introuvable | `journey.test.ts`, `backend.test.ts` | ✅ |
-| Analyse échouée | `journey.test.ts` | ⏳ route absente |
-| Recherche média sans résultat | — | ⏳ fournisseur non injectable |
-| Timeline modifiée / candidat remplacé | — | ⏳ route absente |
-| Rendu réussi / échoué | `renderer/protocol.test.ts` (protocole) | ⏳ routes et worker absents |
-| Téléchargement du résultat | — | ⏳ route absente |
-| Audio original conservé | — | ⏳ worker absent |
+| Analyse échouée | `journey.test.ts` (succès simulé) | ⚠️ succès couvert ; chemin d'échec non simulé |
+| Recherche média sans résultat | — | ⚠️ non couvert par la simulation |
+| Timeline modifiée / candidat remplacé | `journey.test.ts`, `backend.test.ts` | ✅ |
+| Rendu réussi / échoué | `journey.test.ts` (worker `--once`) | ✅ réussi ; ⚠️ échec non provoqué |
+| Téléchargement du résultat | `journey.test.ts` + ffprobe | ✅ |
+| Audio original conservé | `journey.test.ts` + ffprobe | ✅ |
 | Traversée de chemin | `security/api.test.ts`, `backend-units.test.ts` | ✅ |
 | Nom de fichier malveillant | `security/api.test.ts` | ✅ |
 | Projet inexistant / non autorisé | `security/api.test.ts` | ✅ (D-04 non tranchée) |
@@ -132,10 +134,10 @@ Exécution des requêtes `RENDER_JOB_SQL` sur SQLite en mémoire :
 | URL média invalide | `security/static.test.ts` (fixtures) | ⚠️ partiel : URLs signées à venir (D-04) |
 | Clés API non exposées | `security/static.test.ts` + `/api/health` | ✅ |
 | Chemins serveur non exposés | `security/api.test.ts` | ✅ |
-| Fichier hors projet non téléchargeable | `backend-units.test.ts` (chemins confinés) | ⚠️ route download absente |
+| Fichier hors projet non téléchargeable | `backend-units.test.ts` (chemins confinés) + route download | ✅ |
 | Chemin arbitraire choisi par le frontend | `security/api.test.ts` | ✅ |
 | États de chargement / erreurs UX | — | ⏳ `frontend/` absent |
-| Transitions analyse → rendu | parcours P0 | ⏳ bloqué |
+| Transitions analyse → rendu | parcours P0 | ✅ |
 | Synchronisation preview/export | — | ⏳ bloqué |
 
 ## 5. Environnements et outils
@@ -173,10 +175,10 @@ Exécution des requêtes `RENDER_JOB_SQL` sur SQLite en mémoire :
 - Rapport court après chaque campagne ; mise à jour de `docs/OPENCODE_QA_STATUS.md` pour la coordination.
 - Les constats sont classés **bug réel**, **limite** ou **amélioration facultative** ; jamais mélangés.
 
-## 8. État au 18/11/2026
+## 8. État au 19/11/2026
 
-- 189 tests : 186 passent, 3 skips justifiés, 0 échec.
-- Backend : socle, projets, import et streaming livrés ; analyse, timeline, rendu, download et suppression attendus.
-- Worker : absent ; protocole SQLite figé par les tests.
+- 197 tests : 196 passent, 1 skip justifié (frontend absent), 0 échec, 0 todo.
+- Backend : socle, projets, import, streaming, analyse, timeline, rendu, statut et téléchargement livrés et couverts ; seule la suppression (`DELETE`, D-11) reste absente.
+- Worker : `renderer/src/worker.ts` livré, testé en protocole et exécuté de bout en bout (`--once`) sur le parcours P0.
 - Frontend : absent ; audit UX et E2E impossibles.
-- Blocages principaux : D-04 (contrôle d'accès), D-06 (inclusion), D-08 (codecs), D-10 (exposition HTTPS), D-13 (dépôt Git), et absence d'injection de fournisseurs hors ligne pour le parcours complet.
+- Blocages principaux : D-04 (contrôle d'accès), D-06 (inclusion), D-08 (codecs), D-10 (exposition HTTPS) ; D-13 est initialisée (dépôt Git, premier commit).

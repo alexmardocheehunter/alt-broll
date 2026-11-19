@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { http, startBackend, type HttpResult, type RunningBackend } from '../lib/backend-server.ts';
@@ -243,6 +244,44 @@ describe('sécurité API : import de fichiers', () => {
     assert.deepEqual(validateApiErrorResponse(result.json), []);
     assert.equal((result.json as { error: { code: string } }).error.code, 'UPLOAD_UNSUPPORTED_TYPE');
   });
+
+  it('refuse une taille annoncée excessive sans recevoir le corps (413 immédiat)', async () => {
+    const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
+    assert.equal(creation.status, 201, creation.text);
+    const projectId = (creation.json as { project: { id: string } }).project.id;
+
+    const url = new URL(`/api/projects/${projectId}/upload`, server().baseUrl);
+    const response = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'multipart/form-data; boundary=----qa',
+            'Content-Length': String(200 * 1024 * 1024),
+          },
+          timeout: 10_000,
+        },
+        (res) => {
+          let text = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            text += chunk;
+          });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, text }));
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+
+    assert.equal(response.status, 413, response.text);
+    const body = JSON.parse(response.text) as unknown;
+    assert.deepEqual(validateApiErrorResponse(body), []);
+    assert.equal((body as { error: { code: string } }).error.code, 'UPLOAD_TOO_LARGE');
+  });
 });
 
 describe('sécurité API : limitation de débit', () => {
@@ -369,6 +408,20 @@ describe('sécurité : configuration de production', () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr ?? '', /PORT/);
     assert.match(result.stderr ?? '', /Configuration invalide/);
+  });
+
+  it('refuse les fournisseurs simulés en production (PROVIDER_MODE=mock)', () => {
+    const result = runServer({
+      PROVIDER_MODE: 'mock',
+      GROQ_API_KEY: 'qa-dummy',
+      OPENROUTER_API_KEY: 'qa-dummy',
+      OPENROUTER_MODEL: 'qa-dummy',
+      PIXABAY_API_KEY: 'qa-dummy',
+    });
+    assert.equal(result.status, 1, `PROVIDER_MODE=mock aurait dû être refusé en production : ${result.stdout}`);
+    assert.match(result.stderr, /PROVIDER_MODE/);
+    assert.match(result.stderr, /Configuration invalide/);
+    assert.doesNotMatch(result.stderr, /qa-dummy/);
   });
 
   it('refuse TRUST_PROXY=true : un client ne doit pas choisir son adresse IP', () => {

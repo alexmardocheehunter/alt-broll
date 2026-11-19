@@ -173,6 +173,8 @@ export function sleep(ms: number): Promise<void> {
 export interface HttpResult {
   status: number;
   headers: Headers;
+  /** Corps brut (utile pour un MP4 téléchargé). */
+  bytes: Uint8Array;
   text: string;
   /** Corps JSON parsé ; undefined si le corps n'est pas du JSON. */
   json: unknown;
@@ -185,12 +187,13 @@ export async function http(
   init: RequestInit = {},
 ): Promise<HttpResult> {
   const response = await fetch(`${baseUrl}${route}`, { ...init, signal: AbortSignal.timeout(30_000) });
-  const text = await response.text();
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const text = new TextDecoder().decode(bytes);
   let json: unknown;
   try {
     json = text.length > 0 ? JSON.parse(text) : undefined;
   } catch {
     json = undefined;
   }
-  return { status: response.status, headers: response.headers, text, json };
+  return { status: response.status, headers: response.headers, bytes, text, json };
 }

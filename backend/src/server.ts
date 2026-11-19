@@ -8,6 +8,9 @@ import { createLogger } from './utils/logger.ts';
 
 /** Délai accordé aux requêtes en cours lors d'un arrêt. */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+/** Envois lents (réseau mobile) : 150 Mo à 1 Mbit/s prennent environ 20 min ; Node coupe à 5 min par défaut. */
+const REQUEST_TIMEOUT_MS = 30 * 60_000;
+const HEADERS_TIMEOUT_MS = 60_000;
 
 async function main(): Promise<void> {
   const envFile = loadDotEnvFile();
@@ -45,6 +48,8 @@ async function main(): Promise<void> {
 
   const app = createApp({ config, logger, db, binaries: { ffmpeg, ffprobe } });
   const server = createServer(app);
+  server.requestTimeout = REQUEST_TIMEOUT_MS;
+  server.headersTimeout = HEADERS_TIMEOUT_MS;
 
   server.on('error', (error: NodeJS.ErrnoException) => {
     logger.error('server.error', {

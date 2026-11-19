@@ -1,67 +1,49 @@
 # Décisions : ALT B-ROLL
 
-Journal des décisions techniques (PROJECT_MASTER §0). Dernière mise à jour : 18/11/2026, Claude Code, étape 2.
+Journal des décisions techniques (PROJECT_MASTER §0). Mise à jour : 18/11/2026, Claude Code.
 
-Statuts : 🔴 à trancher par Alex · 🟡 proposé, à valider · ✅ décidé.
+Le 18/11, Alex a tranché l'accès (D-04) et délégué les autres choix avec une consigne : « ce qui est sûr de fonctionner et qui sera fluide ». Toutes les décisions ci-dessous sont arrêtées ; une nouvelle question ouvre une nouvelle entrée.
 
-## À trancher par Alex
+| ID | Sujet | Décision | Remarque |
+|---|---|---|---|
+| D-01 | Racine du projet | `C:\OASIS\GitHub\Alt.roll` = le `alt-hol/` du document | `PROJECT_MASTER.txt` extrait à l'identique de `LES INSTRUCTIONS.txt` |
+| D-02 | Socle du backend | Node 24 (TypeScript natif), Express 5, zod 4, `node:sqlite`, `node:test` ; un seul `.env` à la racine | aucune compilation native sous Windows |
+| D-03 | Source de vérité | SQLite : le projet est un document JSON ; l'état du rendu est lu dans `render_jobs` | aucun `project.json` sur disque |
+| D-04 | Accès | **Connexion Google** (choix d'Alex), **reportée** : pas prioritaire | détail ci-dessous |
+| D-05 | B-rolls de l'export | téléchargés et vérifiés par le backend ; le worker n'accède pas au réseau | appliqué par Codex (`renderer/INTEGRATION.md`) |
+| D-06 | Inclusion des B-rolls | inclus par défaut jusqu'au refus : `enabled && status !== 'rejected' && selectedCandidateId !== null` | l'utilisateur peut exporter tout de suite ; preview = export |
+| D-07 | Règles de rendu | celles du contrat (§6) : audio source seul, cover/contain, pas de chevauchement, temps alignés sur la frame, H.264/AAC | appliquées par Codex. Précision (19/11) : le worker refuse un segment plus long que sa vidéo réelle (à une image près) ; le backend borne donc chaque segment à la durée mesurée après téléchargement |
+| D-08 | Vidéos acceptées | MP4 H.264 avec piste audio ; HEVC et .mov refusés avec un message qui explique quoi faire | P1 : conversion automatique des vidéos d'iPhone |
+| D-09 | Écarts à la §6 | acceptés ; contrat v1 adopté | aucun type ni valeur modifié en l'adoptant |
+| D-10 | Exposition du backend | **Tailscale Funnel** depuis le PC d'Alex | détail ci-dessous |
+| D-11 | Un projet par utilisateur | reporté avec D-04 : sans connexion, pas d'utilisateur à compter | — |
+| D-12 | Durée des vidéos | 5 s à 180 s, configurables | la fixture de 30 s d'OpenCode passe |
+| D-13 | Git | dépôt créé par Alex le 18/11 (commit initial `9c4654e`) ; chaque agent ne commite que sur demande d'Alex | `.env` vérifié ignoré, aucun secret suivi |
+| D-14 | Modèle d'analyse | **budget zéro** (Alex, 19/11) : `inclusionai/ling-3.2-flash:free`, secours `nvidia/nemotron-3.5-super-vl:free` (vision) puis `baidu/ernie-5.5-flash-preview:free` (texte seul) | détail ci-dessous |
+| D-15 | Tests sans réseau (QA-002) | `PROVIDER_MODE=mock` : fournisseurs simulés, refusés en production. Contrat : valeur `simulation` ajoutée à `TRANSCRIPTION_PROVIDERS` et `BROLL_PROVIDERS` | changement compatible ; ✅ validateur d'OpenCode mis à jour le 19/11 (`transcript.provider` accepte `groq` et `simulation`) |
+| D-16 | Langue de transcription | français imposé à Whisper (`TRANSCRIPTION_LANGUAGE=fr`, `auto` possible) | public francophone ; évite les erreurs de détection sur les débuts de vidéo |
+| D-17 | Plafond d'analyses | 50 par 24 h glissantes, tous utilisateurs (`MAX_ANALYSES_PER_DAY`) | coût borné tant que la connexion Google n'existe pas |
 
-### D-04 🔴 Contrôle d'accès de la bêta
-**Contexte.** Le backend sera joignable depuis Internet et consomme des API payantes (Groq, OpenRouter). Le document exige de contrôler l'accès aux projets et aux téléchargements, sans système d'authentification complexe.
-**Proposition.** Un code d'accès par testeur, listé dans `.env`, saisi une fois dans l'interface et envoyé dans `Authorization: Bearer <code>`. Chaque projet appartient à un code. Les liens `project.urls` (vidéo source, téléchargement) sont signés et expirent (1 h) pour fonctionner dans `<video src>` et un lien de téléchargement.
-**Variante** (`ALT_BROLL_PROJET.txt` §18) : un jeton propre à chaque projet, renvoyé à la création et envoyé à chaque appel ; il peut compléter le code testeur, mais ne protège pas seul les crédits API (n'importe qui peut créer un projet).
-**Impact.** Frontend : écran de saisie du code, en-tête sur chaque appel. Backend : un middleware et une signature HMAC. Sans contrôle, n'importe qui peut consommer les crédits API.
+## D-04 : connexion Google, reportée
 
-### D-06 🔴 Règle d'inclusion des B-rolls (preview et export)
-**Proposition.** Inclus par défaut jusqu'au refus : `enabled && status !== 'rejected' && selectedCandidateId !== null`. « Accepter » marque la suggestion comme validée, « Refuser » l'exclut, `enabled = false` la met de côté sans perdre ses réglages.
-**Alternative.** Seuls les B-rolls acceptés sont montés : plus explicite, mais l'utilisateur doit tout valider avant d'exporter.
-**Impact.** Seulement le calcul de `timeline` dans le backend : le frontend et le worker suivent automatiquement.
+- **Plus tard** : bouton « Continuer avec Google » via Firebase Authentication, cohérent avec Firebase Hosting. Le frontend envoie le jeton Firebase dans `Authorization: Bearer` ; le backend le vérifie, rattache chaque projet à son utilisateur et signe les liens vidéo et de téléchargement (un `<video src>` ne peut pas envoyer d'en-tête).
+- **En attendant** : pas d'écran de connexion. Le coût reste borné même si l'URL du backend circule : identifiants de projet impossibles à deviner, limite de débit par adresse IP, plafond quotidien d'analyses (ajouté à l'étape 3), limite de crédit à fixer sur la clé OpenRouter.
 
-### D-08 🔴 Vidéos acceptées à l'import
-**Proposition.** Refuser une vidéo sans piste audio (`VIDEO_NO_AUDIO`) : sans parole, pas de suggestion possible. Accepter le H.264.
-**Question.** Accepter le HEVC (vidéos d'iPhone) ? FFmpeg sait l'exporter, mais tous les navigateurs ne le lisent pas en preview. Option prudente : le refuser en bêta avec un message clair (`VIDEO_UNSUPPORTED_CODEC`).
-**Appliqué en attendant (étape 2).** H.264 seul et vidéos sans audio refusées. Changer d'avis tient en une ligne : `ACCEPTED_VIDEO_CODECS` dans `backend/src/services/upload.service.ts`.
+## D-08 : pourquoi ni .mov ni HEVC pour l'instant
 
-### D-10 🔴 Exposition du backend pour la bêta (urgent pour samedi)
-Le frontend sera servi en HTTPS (Firebase Hosting) ; un navigateur bloque les appels d'une page HTTPS vers une API HTTP. Il faut une URL HTTPS vers le backend de la machine d'Alex : tunnel (Cloudflare Tunnel, gratuit, ou ngrok) vers `127.0.0.1:3000`, ou petit serveur VPS avec proxy HTTPS.
-**Impact.** `APP_BASE_URL`, `FRONTEND_ORIGIN`, et le test du parcours complet de vendredi. Le limiteur de débit (`RATE_LIMIT_WRITES_PER_HOUR`) compte par adresse IP : derrière un tunnel, régler `TRUST_PROXY=loopback` (déjà disponible, `false` par défaut), sinon tous les testeurs partagent la même limite (QA-OBS-005).
+Le MP4 H.264 est lu par tous les navigateurs (preview) et par FFmpeg (export) : rien à convertir, donc rien qui puisse casser. Les vidéos d'iPhone (.mov, souvent en HEVC) demandent une conversion à l'import ; elle est prévue en P1, une fois le parcours P0 validé. En attendant, le message d'erreur indique d'exporter la vidéo en MP4 H.264. Un seul réglage à changer : `ACCEPTED_VIDEO_CODECS` dans `backend/src/services/upload.service.ts`.
 
-### D-13 🔴 Dépôt Git
-Le dossier n'est pas encore un dépôt Git. Recommandation : `git init` avant que les trois agents écrivent, pour voir ce que chacun modifie. Non fait sans accord.
+## D-10 : Tailscale Funnel
 
-## Proposé, à valider
+- URL HTTPS stable et gratuite vers le PC d'Alex, sans nom de domaine. Funnel relaie la connexion chiffrée jusqu'au PC, donc sans le plafond de 100 Mo par requête de l'offre gratuite de Cloudflare, inférieur aux 150 Mo de la bêta. À confirmer vendredi par un import de 150 Mo.
+- Réglages : `APP_BASE_URL=https://<machine>.<tailnet>.ts.net`, `FRONTEND_ORIGIN=https://<projet>.web.app`, `TRUST_PROXY=loopback`.
+- Mise en place vendredi, au test d'intégration. Repli : Cloudflare Tunnel avec `MAX_UPLOAD_MB=95`.
 
-### D-09 🟡 Écarts du contrat par rapport à la structure conceptuelle (§6)
-1. `Project.errors` remplacé par `analysis.error` et `render.error` : une erreur vit à un seul endroit.
-2. `Analysis.suggestions[]` fusionné dans `Project.brollItems` : les suggestions sont les éléments éditables, sans seconde copie.
-3. `Project.timeline` : segments calculés par le backend (lecture seule), pour que preview et export utilisent la même liste.
-4. Ajouts : `analysis.stage` (progression), `ErrorInfo.retryable`, `source.videoCodec` et `audioCodec`, `Project.urls`, `render.revision`, statut de rendu `preparing`.
-5. `render.outputFile` ne contient aucun chemin : `{ sizeBytes, durationSeconds }`.
+## D-14 : modèles d'analyse gratuits (budget zéro)
 
-### D-03 🟡 SQLite, source de vérité unique
-Le projet est un document JSON dans `projects.document` (identité et révision en colonnes). L'état du rendu vient de `render_jobs`, seule table que le worker modifie. Aucun `project.json` sur disque, donc pas de seconde source de vérité.
-
-### D-05 🟡 Téléchargement des B-rolls par le backend
-À `POST /render`, le backend crée le job en `preparing`, télécharge les B-rolls retenus (HTTPS, hôtes Pixabay uniquement, taille et durée limitées), les vérifie avec ffprobe, puis passe le job en `queued`. Le worker n'accède jamais au réseau. À confirmer avec Codex.
-
-### D-07 🟡 Règles de rendu
-Aucun chevauchement (refus `TIMELINE_OVERLAP` au PATCH) ; B-roll lu depuis son début ; segment limité à la durée du B-roll choisi (règle reprise de `ALT_BROLL_PROJET.txt` §9), la dernière image n'étant figée que pour l'écart d'arrondi de la durée Pixabay ; cadrage `cover` ou `contain` ; audio de la source uniquement ; temps alignés sur la frame ; sortie H.264/AAC, petit côté ≤ 1080 (ou 720). Détail dans `shared/contract.ts`. À confirmer par Codex (faisabilité FFmpeg) et Alex (comportement de la preview).
-
-### D-11 🟡 Un projet actif par testeur
-Limite configurable, et nouvelle route `DELETE /api/projects/:id` qui supprime le projet et ses fichiers. Dépend de D-04.
-
-### D-12 🟡 Durée minimale de 5 s
-Le document vise des vidéos de 1 à 3 min, mais la fixture de test fait environ 30 s : minimum 5 s, maximum 180 s, tous deux configurables (`MIN_VIDEO_DURATION_SECONDS`, `MAX_VIDEO_DURATION_SECONDS`).
-
-## Décidé (périmètre Claude Code)
-
-### D-01 ✅ Racine du projet
-Le dossier `alt-hol/` du document correspond à `C:\OASIS\GitHub\Alt.roll`, le dossier partagé par Alex. `PROJECT_MASTER.txt` y a été extrait à l'identique de `LES INSTRUCTIONS.txt` (conservé tel quel). À corriger si un sous-dossier `alt-hol/` était voulu.
-
-### D-02 ✅ Socle technique du backend
-- Node.js 24 exécute directement le TypeScript : pas d'étape de compilation ni de dossier `dist/`. `npm run build` vérifie les types.
-- Express 5, choisi plutôt que Fastify : plus répandu, suffisant pour la bêta.
-- zod 4 pour valider l'environnement et, ensuite, les requêtes et les réponses des fournisseurs.
-- `node:sqlite`, intégré à Node : aucune compilation native sous Windows ; utilisable tel quel par le worker.
-- Tests avec `node:test`, sans dépendance ni appel externe.
-- Un seul `.env` à la racine pour le backend et le worker ; chemins relatifs résolus depuis la racine.
+- **Décision d'Alex (19/11)** : rester sur des modèles gratuits. Toute la chaîne coûte 0 $ : Groq (offre gratuite), modèles `:free` d'OpenRouter, Pixabay. La recommandation initiale (Claude Haiku 5.5, payant) est abandonnée.
+- **Testé le 19/11 avec la vraie clé** : `ling` lit l'image et respecte le JSON imposé (analyse réelle complète en 31 s). `nemotron` aussi (11 s), à condition de lui laisser de quoi « réfléchir » : limite de réponse portée à 6 000 tokens. `ernie` ne lit pas les images et sert de secours texte seul. `google/gemma-4-31b-it:free` est écarté : il refuse le JSON imposé. La chaîne de 3 modèles est acceptée par OpenRouter et a déjà servi (`ling` indisponible, `nemotron` a répondu).
+- Le 19/11, seuls 6 modèles gratuits acceptaient à la fois image et JSON imposé.
+- **Parades codées** : 3 modèles essayés dans l'ordre par OpenRouter ; modèles disparus de la liste publique ignorés (vérification toutes les heures) ; image confiée aux seuls modèles qui l'acceptent ; repli sur le texte seul ; message « quota gratuit du jour atteint, réessayez demain » ; plafond de 50 analyses par 24 h.
+- **Risques acceptés** : quotas journaliers des modèles gratuits, disparition sans préavis (`ernie` est une version « preview »), lenteur variable (11 à 25 s pour l'analyse). Les hébergeurs gratuits peuvent conserver les données reçues (transcription, planche contact) : à signaler aux testeurs.
+- Changer de modèles : `OPENROUTER_MODEL` et `OPENROUTER_FALLBACK_MODEL` (liste séparée par des virgules) dans `.env`, sans toucher au code.

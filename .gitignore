@@ -10,6 +10,8 @@ node_modules/
 backend/data/*
 !backend/data/.gitkeep
 storage/
+# « storage/ » vise les médias stockés, pas le code du même nom :
+!backend/src/storage/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

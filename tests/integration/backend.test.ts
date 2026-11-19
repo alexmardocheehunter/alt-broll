@@ -12,7 +12,9 @@ import {
   validateHealthResponse,
   validateProjectStatusResponse,
   validatePublicConfigResponse,
+  validateRenderStatusResponse,
   validateSuggestionsResponse,
+  validateUpdateTimelineResponse,
 } from '../lib/validation/api.ts';
 
 /*
@@ -199,6 +201,103 @@ describe('intégration backend : routes projets livrées (contrat)', () => {
     assert.deepEqual(suggestionsBody.timeline, { segments: [] });
   });
 
+  it('POST /api/projects/:id/analyze refuse un projet sans vidéo (409 ANALYSIS_NOT_READY)', async () => {
+    const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
+    assert.equal(creation.status, 201, creation.text);
+    const projectId = (creation.json as { project: { id: string } }).project.id;
+
+    const result = await http(server().baseUrl, `/api/projects/${projectId}/analyze`, { method: 'POST' });
+    assert.equal(result.status, 409, result.text);
+    assert.deepEqual(validateApiErrorResponse(result.json), []);
+    const body = result.json as { error: { code: string; stage: string; retryable: boolean } };
+    assert.equal(body.error.code, 'ANALYSIS_NOT_READY');
+    assert.equal(body.error.stage, 'analysis');
+    assert.equal(body.error.retryable, false);
+  });
+
+  it('PATCH /api/projects/:id/timeline valide le corps, la révision et la source', async () => {
+    const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
+    assert.equal(creation.status, 201, creation.text);
+    const created = (creation.json as { project: { id: string; revision: number } }).project;
+    const route = `/api/projects/${created.id}/timeline`;
+    const patch = (body: unknown) =>
+      http(server().baseUrl, route, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const empty = await patch({ baseRevision: created.revision, items: [] });
+    assert.equal(empty.status, 200, empty.text);
+    assert.deepEqual(validateUpdateTimelineResponse(empty.json), []);
+    assert.equal((empty.json as { project: { revision: number } }).project.revision, created.revision, 'une requête vide ne doit rien changer');
+
+    const unknownField = await patch({ baseRevision: created.revision, items: [], champInconnu: true });
+    assert.equal(unknownField.status, 400, unknownField.text);
+    assert.deepEqual(validateApiErrorResponse(unknownField.json), []);
+    assert.equal((unknownField.json as { error: { code: string } }).error.code, 'VALIDATION_FAILED');
+
+    const stale = await patch({ baseRevision: created.revision + 5, items: [] });
+    assert.equal(stale.status, 409, stale.text);
+    assert.deepEqual(validateApiErrorResponse(stale.json), []);
+    assert.equal((stale.json as { error: { code: string } }).error.code, 'REVISION_CONFLICT');
+
+    const noSource = await patch({ baseRevision: created.revision, items: [{ id: 'br_absent', enabled: false }] });
+    assert.equal(noSource.status, 422, noSource.text);
+    assert.deepEqual(validateApiErrorResponse(noSource.json), []);
+    assert.equal((noSource.json as { error: { code: string } }).error.code, 'TIMELINE_INVALID');
+  });
+
+  it('GET /render/status expose un état idle conforme et /download refuse sans export', async () => {
+    const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
+    assert.equal(creation.status, 201, creation.text);
+    const projectId = (creation.json as { project: { id: string; revision: number } }).project.id;
+
+    const status = await http(server().baseUrl, `/api/projects/${projectId}/render/status`);
+    assert.equal(status.status, 200, status.text);
+    assert.deepEqual(validateRenderStatusResponse(status.json), []);
+    const body = status.json as {
+      projectId: string;
+      projectRevision: number;
+      render: { status: string; jobId: string | null; progress: number; urls?: unknown };
+    };
+    assert.equal(body.projectId, projectId);
+    assert.equal(body.render.status, 'idle');
+    assert.equal(body.render.jobId, null);
+    assert.equal(body.render.progress, 0);
+
+    const download = await http(server().baseUrl, `/api/projects/${projectId}/download`);
+    assert.equal(download.status, 409, download.text);
+    assert.deepEqual(validateApiErrorResponse(download.json), []);
+    const error = (download.json as { error: { code: string; stage: string; retryable: boolean } }).error;
+    assert.equal(error.code, 'DOWNLOAD_NOT_READY');
+    assert.equal(error.stage, 'download');
+    assert.equal(error.retryable, true);
+  });
+
+  it('POST /render refuse un projet non analysé et un corps invalide', async () => {
+    const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
+    assert.equal(creation.status, 201, creation.text);
+    const created = (creation.json as { project: { id: string; revision: number } }).project;
+    const route = `/api/projects/${created.id}/render`;
+    const post = (body: unknown) =>
+      http(server().baseUrl, route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const invalid = await post({});
+    assert.equal(invalid.status, 400, invalid.text);
+    assert.deepEqual(validateApiErrorResponse(invalid.json), []);
+    assert.equal((invalid.json as { error: { code: string } }).error.code, 'VALIDATION_FAILED');
+
+    const notReady = await post({ revision: created.revision });
+    assert.equal(notReady.status, 409, notReady.text);
+    assert.deepEqual(validateApiErrorResponse(notReady.json), []);
+    assert.equal((notReady.json as { error: { code: string } }).error.code, 'RENDER_NOT_READY');
+  });
+
   it('GET /media/source sans vidéo importée renvoie 404 structurée, sans chemin serveur', async () => {
     const creation = await http(server().baseUrl, '/api/projects', { method: 'POST' });
     assert.equal(creation.status, 201, creation.text);
@@ -212,13 +311,13 @@ describe('intégration backend : routes projets livrées (contrat)', () => {
   });
 });
 
-describe('intégration backend : routes P0 encore attendues (18/11/2026)', () => {
+describe('intégration backend : route P0 encore attendue (19/11/2026)', () => {
   /*
-   * Claude a livré création, lecture, statut, suggestions, import et média
-   * source. Les routes ci-dessous restent spécifiées dans docs/API.md mais ne
-   * sont pas branchées. On utilise un vrai projet pour distinguer « route
-   * absente » de « projet inconnu » : quand une route sera livrée, ce test
-   * échouera volontairement et devra être remplacé par ses assertions.
+   * Claude a livré création, lecture, statut, suggestions, import, média
+   * source, analyse, édition de timeline, rendu, statut et téléchargement.
+   * Seule la suppression (proposée D-11) reste absente. On utilise un vrai
+   * projet pour distinguer « route absente » de « projet inconnu » : quand elle
+   * sera livrée, ce test échouera volontairement et devra être remplacé.
    */
   let projectId = '';
 
@@ -228,14 +327,7 @@ describe('intégration backend : routes P0 encore attendues (18/11/2026)', () =>
     projectId = (creation.json as { project: { id: string } }).project.id;
   });
 
-  const routes: ReadonlyArray<readonly [string, string]> = [
-    ['POST', '/api/projects/:id/analyze'],
-    ['PATCH', '/api/projects/:id/timeline'],
-    ['POST', '/api/projects/:id/render'],
-    ['GET', '/api/projects/:id/render/status'],
-    ['GET', '/api/projects/:id/download'],
-    ['DELETE', '/api/projects/:id'],
-  ];
+  const routes: ReadonlyArray<readonly [string, string]> = [['DELETE', '/api/projects/:id']];
 
   for (const [method, template] of routes) {
     it(`${method} ${template.replace(':id', 'projet_qa')} n’est pas encore livrée → 404 structurée`, async () => {

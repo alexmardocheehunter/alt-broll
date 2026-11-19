@@ -161,7 +161,7 @@ export function createUploadService({ config, logger, storage, projects }: Uploa
       throw uploadError(
         'VIDEO_UNSUPPORTED_CODEC',
         422,
-        `Le codec vidéo « ${video.codec} » n'est pas pris en charge : exportez la vidéo en MP4 H.264.`,
+        `Le codec vidéo « ${video.codec} » n'est pas encore pris en charge : exportez la vidéo en MP4 H.264 depuis votre application de montage, puis importez-la à nouveau.`,
       );
     }
     if (audio === null) {
@@ -217,9 +217,13 @@ export function createUploadService({ config, logger, storage, projects }: Uploa
       let saved: ProjectRecord;
       try {
         // Nouvelle vidéo : la transcription, l'analyse et les B-rolls précédents ne valent plus.
-        saved = projects.save(record, { source, transcript: null, analysis: initialAnalysis(), brollItems: [] });
+        saved = projects.save(record, { ...record.document, source, transcript: null, analysis: initialAnalysis(), brollItems: [] });
       } catch (error) {
         await rm(destination, { force: true });
+        // Projet supprimé pendant l'envoi : rien ne doit rester sur le disque.
+        if (error instanceof AppError && error.code === 'NOT_FOUND') {
+          await rm(storage.projectDir(record.id), { recursive: true, force: true, maxRetries: 3 });
+        }
         throw error;
       }
       await removePreviousSource(record);
@@ -253,7 +257,11 @@ function conflict(message: string): AppError {
 function declaredFileProblem(file: Express.Multer.File): AppError | null {
   const extension = path.extname(file.originalname).toLowerCase();
   if (!(UPLOAD_RULES.acceptedExtensions as readonly string[]).includes(extension)) {
-    return uploadError('UPLOAD_UNSUPPORTED_TYPE', 415, 'Seuls les fichiers MP4 (.mp4) sont acceptés.');
+    return uploadError(
+      'UPLOAD_UNSUPPORTED_TYPE',
+      415,
+      'Seuls les fichiers MP4 (.mp4) sont acceptés pendant la bêta : exportez la vidéo en MP4 H.264 depuis votre application de montage (les vidéos .mov d’iPhone doivent être converties).',
+    );
   }
   if (!ACCEPTED_DECLARED_MIME_TYPES.includes(file.mimetype.toLowerCase())) {
     return uploadError('UPLOAD_UNSUPPORTED_TYPE', 415, 'Le type du fichier ne correspond pas à une vidéo MP4.');

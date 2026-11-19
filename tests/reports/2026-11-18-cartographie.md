@@ -1,12 +1,12 @@
 # Cartographie QA : ALT B-ROLL
 
-> 18/11/2026 · OpenCode · tâche A de PROJECT_MASTER §9
+> 18/11/2026 · OpenCode · tâche A de PROJECT_MASTER §9 — **mise à jour 19/11/2026 après livraison de l'analyse, du rendu et du worker**
 > Objectif : situer les composants, les points de synchronisation et les incohérences détectées avant les tests.
 
 ## 1. Composants et flux
 
 ```
-frontend/ (Alex, absent)          backend/ (Claude)                 renderer/ (Codex, absent)
+frontend/ (Alex, absent)          backend/ (Claude)                 renderer/ (Codex)
   HTML/CSS/JS                        Express 5 + node:sqlite            worker SQLite + FFmpeg
        │                                  │                                  │
        │  HTTP JSON / multipart           │  écrit projects + render_jobs    │  lit/écrit render_jobs
@@ -19,10 +19,10 @@ frontend/ (Alex, absent)          backend/ (Claude)                 renderer/ (C
 | Composant | État | Responsable | Ce que QA peut vérifier |
 |---|---|---|---|
 | `shared/contract.ts` | proposition v1, à valider par Alex | Alex | types, constantes, DDL, requêtes SQL de référence |
-| `backend/` | socle + projets + import + streaming livrés | Claude | HTTP réel, services importés, sécurité |
-| `renderer/` | absent | Codex | seulement le protocole SQLite figé par le contrat |
+| `backend/` | socle, projets, import, streaming, analyse, timeline, rendu, download livrés | Claude | HTTP réel, services importés, sécurité, parcours complet |
+| `renderer/` | worker livré, mode `--once` | Codex | protocole SQLite et exécution réelle sur le parcours P0 |
 | `frontend/` | absent | Alex | rien pour l'instant |
-| `tests/` | 189 tests, 0 échec | OpenCode | — |
+| `tests/` | 197 tests, 196 pass, 1 skip, 0 échec | OpenCode | — |
 
 ## 2. Points de synchronisation
 
@@ -48,7 +48,7 @@ frontend/ (Alex, absent)          backend/ (Claude)                 renderer/ (C
 | BUG-QA-001 | `toRenderState()` renvoyait `progress = row.progress` pour un job `completed` ; le contrat impose `progress = 1`. Un export terminé pouvait afficher 80 %. | mineure (affichage) | ✅ corrigé par Claude, vérifié par QA |
 | QA-OBS-002 | `recoverStale` remet un job en `queued` sans remettre `progress` à 0. Entre la remise en file et le prochain `claimNext`, l'API pouvait afficher « en file » avec une ancienne progression. | mineure | ✅ corrigé : `preparing`/`queued` affichent 0 |
 | QA-OBS-003 | `RENDER_JOB_SQL.fail` accepte n'importe quel `error_code` : rien n'impose un code `RENDER_*`. Un worker peut écrire `NOT_FOUND` dans un échec de rendu. | mineure (robustesse) | ✅ corrigé côté API (normalisation en `INTERNAL_ERROR`), à borne aussi côté worker |
-| QA-OBS-004 | `heartbeat` ne borne pas `progress` ; seul le `CHECK` SQLite refuse une valeur hors `[0,1]`. Le worker doit borner avant l'UPDATE, sinon l'écriture échoue. | mineure (contrat worker) | ⏳ Codex |
+| QA-OBS-004 | `heartbeat` ne borne pas `progress` ; seul le `CHECK` SQLite refuse une valeur hors `[0,1]`. | mineure (contrat worker) | ✅ corrigé côté worker : clamp `[0, 0.99]` avant l'UPDATE |
 | QA-OBS-005 | Sans `trust proxy`, derrière un tunnel (D-10) tous les clients partagent l'IP du tunnel : la limite de 60 écritures/h s'applique globalement. | majeure pour la bêta | 🟡 `TRUST_PROXY` configurable et testé ; valeur à fixer avec D-10 |
 | QA-OBS-006 | `GET /media/source` n'est protégé que par l'identifiant du projet, non devinable mais non authentifié. Dépend de D-04. | majeure si bêta publique | 🔴 ouvert |
 
@@ -62,14 +62,14 @@ frontend/ (Alex, absent)          backend/ (Claude)                 renderer/ (C
 | `GET /api/projects/:id` | ✅ | ✅ |
 | `GET …/status`, `…/suggestions` | ✅ | ✅ |
 | `GET …/media/source` | ✅ | ✅ (Range, CORS) |
-| `POST …/analyze` | spécifié | **404** |
-| `PATCH …/timeline` | spécifié | **404** |
-| `POST …/render` | spécifié | **404** |
-| `GET …/render/status` | spécifié | **404** |
-| `GET …/download` | spécifié | **404** |
+| `POST …/analyze` | ✅ | ✅ (202, `PROVIDER_MODE=mock` hors ligne) |
+| `PATCH …/timeline` | ✅ | ✅ |
+| `POST …/render` | ✅ | ✅ (202 `preparing`, worker `--once`) |
+| `GET …/render/status` | ✅ | ✅ |
+| `GET …/download` | ✅ | ✅ (MP4 vérifié ffprobe) |
 | `DELETE /api/projects/:id` | proposé D-11 | **404** |
 
-La baseline 404 de `integration/backend.test.ts` échouera volontairement à la livraison de chaque route : c'est le signal de remplacement par les assertions de contrat.
+La baseline 404 de `integration/backend.test.ts` ne porte plus que sur `DELETE` : elle échouera volontairement à sa livraison.
 
 ### 3.3 Écarts de spécification à trancher
 
@@ -77,7 +77,7 @@ La baseline 404 de `integration/backend.test.ts` échouera volontairement à la 
 - **D-06** : la règle `enabled && status !== 'rejected' && selectedCandidateId !== null` est implémentée dans `timeline.service.ts` et testée, mais Alex ne l'a pas validée.
 - **D-08** : H.264 seul accepté ; HEVC refusé. À confirmer.
 - **D-10** : tunnel HTTPS + `trust proxy` à décider avant la bêta.
-- **D-13** : pas de dépôt Git ; aucun historique des modifications.
+- **D-13** : dépôt Git initialisé (commit `9c4654e`) ; les livraisons restent non commitées.
 
 ## 4. Couverture par section du contrat
 
@@ -90,7 +90,7 @@ La baseline 404 de `integration/backend.test.ts` échouera volontairement à la 
 | §5 | réponses HTTP | `contract/api.test.ts`, `integration/*` |
 | §6 | jobs de rendu SQLite | `renderer/protocol.test.ts`, schéma réel |
 
-**Non couvert, faute de composant :** rendu FFmpeg réel, conservation de l'audio, validation du MP4 final, preview frontend, synchronisation preview/export, perte réseau, E2E navigateur.
+**Non couvert, faute de composant :** preview frontend, synchronisation preview/export, perte réseau, E2E navigateur.
 
 ## 5. Dépendances des tests
 
@@ -100,7 +100,7 @@ La baseline 404 de `integration/backend.test.ts` échouera volontairement à la 
 | FFmpeg / ffprobe | fixtures et import | fixtures et import `skip` |
 | Backend démarrable | intégration, sécurité | bloquant pour ces suites |
 | `shared/contract.ts` | tout | bloquant |
-| Worker | aucun test d'implémentation | protocole testé quand même |
+| Worker | parcours P0 (`--once`) | protocole et exécution réelle testés |
 | Frontend | aucun | audits UX et E2E `skip` |
 
 Aucun test ne dépend d'une clé API, d'un compte cloud, d'un média tiers ou de `npm install`.

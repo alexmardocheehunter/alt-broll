@@ -6,6 +6,7 @@ import { createApp } from '../src/app.ts';
 import { loadConfig, type AppConfig } from '../src/config/env.ts';
 import type { RenderJobStatus } from '../src/contract.ts';
 import { openDatabase } from '../src/db/database.ts';
+import type { AnalysisProviders, FetchLike } from '../src/providers/types.ts';
 import { createLogger, type Logger } from '../src/utils/logger.ts';
 
 /** Logger muet pour ne pas polluer la sortie des tests. */
@@ -51,17 +52,41 @@ export interface TestApp {
   close(): Promise<void>;
 }
 
+export interface TestAppOptions {
+  /** Fournisseurs de l'analyse (doublures) ; par défaut selon la configuration. */
+  readonly providers?: AnalysisProviders | null;
+  /** Base partagée entre deux applications (reprise après redémarrage). */
+  readonly db?: DatabaseSync;
+  /** Réseau simulé (vidéos B-roll, clés de Google) ; par défaut, tout appel réseau échoue. */
+  readonly fetch?: FetchLike;
+}
+
+/** Réseau coupé : un test ne touche jamais Pixabay ni Google par accident (préchargement compris). */
+export const offlineFetch: FetchLike = async (url) => {
+  throw new TypeError(`réseau désactivé pendant les tests : ${url}`);
+};
+
 /** Application complète sur une base en mémoire. */
-export async function startTestApp(overrides: Record<string, string> = {}): Promise<TestApp> {
-  const db = openDatabase(':memory:');
-  const app = createApp({ config: testConfig(overrides), logger: silentLogger, db, binaries: AVAILABLE_BINARIES });
+export async function startTestApp(
+  overrides: Record<string, string> = {},
+  options: TestAppOptions = {},
+): Promise<TestApp> {
+  const db = options.db ?? openDatabase(':memory:');
+  const app = createApp({
+    config: testConfig(overrides),
+    logger: silentLogger,
+    db,
+    binaries: AVAILABLE_BINARIES,
+    ...(options.providers === undefined ? {} : { providers: options.providers }),
+    fetch: options.fetch ?? offlineFetch,
+  });
   const server = await startTestServer(app);
   return {
     baseUrl: server.baseUrl,
     db,
     close: async () => {
       await server.close();
-      db.close();
+      if (options.db === undefined) db.close();
     },
   };
 }

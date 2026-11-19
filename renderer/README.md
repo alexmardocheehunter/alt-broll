@@ -2,7 +2,9 @@
 
 Prérequis : Node.js 24+, FFmpeg et ffprobe accessibles dans le PATH. Le worker et le backend lisent le même `.env` à la racine et utilisent la même base SQLite et le même `STORAGE_ROOT`.
 
-Depuis la racine : `node renderer/src/worker.ts` (ou `npm --prefix renderer start`). Variables lues : `DATABASE_PATH`, `STORAGE_ROOT`, `FFMPEG_PATH`, `FFPROBE_PATH`, `MAX_CONCURRENT_RENDERS`.
+Installer les outils de vérification depuis la racine avec `npm --prefix renderer install`.
+
+Depuis la racine : `node renderer/src/worker.ts` (ou `npm --prefix renderer start`). Pour prendre au plus un job disponible et quitter, utilisez `node renderer/src/worker.ts --once`. Variables lues : `DATABASE_PATH`, `STORAGE_ROOT`, `FFMPEG_PATH`, `FFPROBE_PATH`, `MAX_CONCURRENT_RENDERS`.
 
 Le worker ne contacte aucun service réseau et ne lit que les jobs `queued`. Il récupère les fichiers B-roll déjà téléchargés par le backend, valide les chemins sous le dossier du projet, encode vers un fichier temporaire, inspecte le résultat avec ffprobe puis le renomme atomiquement. Les erreurs FFmpeg détaillées restent dans les logs ; seules des erreurs structurées et sans chemins sont écrites dans SQLite.
 

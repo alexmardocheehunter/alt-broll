@@ -1,12 +1,14 @@
 # Rapport QA : ALT B-ROLL
 
+> ⚠️ **Instantané historique du 18/11/2026.** Les routes d'analyse/rendu et le worker ont été livrés depuis ; voir [`2026-11-19-rapport-QA-P0.md`](2026-11-19-rapport-QA-P0.md) pour l'état actuel.
+>
 > 18/11/2026 · OpenCode · campagne de mise en place et premier audit
-> Suite : 189 tests, 186 réussis, 3 ignorés justifiés, **0 échec**.
+> Suite : 193 tests, 190 réussis, 3 ignorés justifiés, **0 échec**.
 
 ## 1. Résumé
 
 - Fixtures média 100 % synthétiques générées par FFmpeg, avec manifeste SHA-256 et JSON de projet/job conformes.
-- 73 tests de contrat, 31 tests renderer/fixtures, 35 tests de sécurité, 50 tests d'intégration.
+- 73 tests de contrat, 31 tests renderer/fixtures, 36 tests de sécurité, 53 tests d'intégration.
 - Le backend réel est testé en HTTP (base et stockage temporaires, clés fournisseur vides) : health, config, projets, import, refus d'import, streaming Range.
 - Un bug backend réel détecté, corrigé par Claude pendant la campagne et verrouillé par un test de non-régression.
 - Le parcours P0 complet reste bloqué par l'absence des routes analyse/timeline/rendu/download et d'un mode fournisseur hors ligne.
@@ -87,7 +89,7 @@
 - Le protocole worker est testé sur SQLite en mémoire, pas avec le worker réel.
 - Le rendu FFmpeg n'est pas exécuté : aucune assertion sur l'audio conservé ni sur le MP4 final.
 - Les tests d'import utilisent de vrais fichiers mais pas de vrai navigateur : le comportement `<video>` (autoplay, seek, codecs) reste à vérifier côté frontend.
-- La limite de débit est testée sur une seule instance et une seule IP.
+- La limite de débit est testée sur une seule instance ; le comportement multi-clients est simulé par `X-Forwarded-For` avec `TRUST_PROXY=loopback`.
 - Les fixtures doivent être régénérées si la version de FFmpeg change (manifeste SHA-256).
 
 ## 5. Améliorations facultatives

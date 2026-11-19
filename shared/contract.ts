@@ -2,9 +2,8 @@
  * =====================================================================
  * ALT B-ROLL : CONTRAT COMMUN (shared/contract.ts)
  * =====================================================================
- * Statut   : PROPOSITION v1 du 18/11/2026, préparée par Claude Code.
- *            EN ATTENTE DE VALIDATION PAR ALEX (propriétaire du fichier).
- *            Points à arbitrer : docs/DECISIONS.md (D-04 à D-09).
+ * Statut   : v1 ADOPTÉE le 18/11/2026 (rédigée par Claude Code ; choix délégués
+ *            par Alex, propriétaire du fichier). Décisions : docs/DECISIONS.md.
  * Lecteurs : backend/ (Claude Code), renderer/ (Codex), tests/ (OpenCode),
  *            frontend/ (Alex : le frontend étant en JavaScript, il lit ce
  *            fichier comme une spécification).
@@ -101,9 +100,16 @@ export type BrollItemStatus = (typeof BROLL_ITEM_STATUSES)[number];
 export const BROLL_FITS = ['cover', 'contain'] as const;
 export type BrollFit = (typeof BROLL_FITS)[number];
 
-/** Banques média. Pexels pourra être ajouté plus tard (changement compatible). */
-export const BROLL_PROVIDERS = ['pixabay'] as const;
+/**
+ * Banques média. 'simulation' : fournisseur simulé du mode de test hors ligne
+ * (PROVIDER_MODE=mock), refusé en production. Pexels pourra être ajouté plus tard.
+ */
+export const BROLL_PROVIDERS = ['pixabay', 'simulation'] as const;
 export type BrollProvider = (typeof BROLL_PROVIDERS)[number];
+
+/** Services de transcription. 'simulation' : mode de test hors ligne (PROVIDER_MODE=mock), refusé en production. */
+export const TRANSCRIPTION_PROVIDERS = ['groq', 'simulation'] as const;
+export type TranscriptionProviderName = (typeof TRANSCRIPTION_PROVIDERS)[number];
 
 // =====================================================================
 // 3. Erreurs structurées
@@ -236,9 +242,12 @@ export interface TranscriptWord {
   word: string;
 }
 
-/** Transcription réelle issue de Groq Whisper (jamais inventée ni simulée). */
+/**
+ * Transcription réelle issue de Groq Whisper, jamais inventée. Seul le mode de test
+ * hors ligne produit provider = 'simulation', toujours signalé comme tel.
+ */
 export interface Transcript {
-  provider: 'groq';
+  provider: TranscriptionProviderName;
   /** Modèle réellement utilisé, ex. "whisper-large-v3-turbo". */
   model: string;
   /** Langue (ISO 639-1), ex. "fr". */
@@ -324,7 +333,7 @@ export interface BrollItem {
 }
 
 /*
- * RÈGLE D'INCLUSION (proposition D-06, à valider par Alex)
+ * RÈGLE D'INCLUSION (décision D-06)
  * Un BrollItem est monté, dans la preview comme dans l'export, si et seulement si :
  *   enabled === true && status !== 'rejected' && selectedCandidateId !== null
  * Le backend en déduit Project.timeline ; le frontend s'appuie sur
@@ -427,6 +436,31 @@ export interface PublicConfigResponse {
   };
   timeline: typeof TIMELINE_RULES;
   fits: readonly BrollFit[];
+}
+
+/** Connexion (D-04) : « none » pendant la bêta ouverte, « firebase » = compte Google via Firebase Authentication. */
+export const AUTH_MODES = ['none', 'firebase'] as const;
+export type AuthMode = (typeof AUTH_MODES)[number];
+
+export interface AuthUser {
+  /** uid Firebase du compte. */
+  id: string;
+  email: string | null;
+}
+
+/**
+ * GET /api/auth/session : toujours 200.
+ * En mode « firebase », toutes les routes /api/projects… exigent l'en-tête
+ * `Authorization: Bearer <jeton d'identification Firebase>` (401 UNAUTHORIZED sinon),
+ * et le projet d'un autre compte répond 404. Exception : les liens urls.source et
+ * urls.download, signés, s'ouvrent sans en-tête (lecteur vidéo, téléchargement).
+ */
+export interface AuthSessionResponse {
+  mode: AuthMode;
+  /** Projet Firebase attendu par le serveur ; null en mode « none ». */
+  firebaseProjectId: string | null;
+  /** Compte reconnu d'après l'en-tête Authorization ; null sans jeton valide ou en mode « none ». */
+  user: AuthUser | null;
 }
 
 /** POST /api/projects : corps vide. Réponse 201. */
@@ -538,7 +572,7 @@ export interface RenderStatusResponse {
  * - Les deux processus ouvrent la même base (DATABASE_PATH) avec
  *   PRAGMA busy_timeout = 5000 ; le backend active journal_mode = WAL.
  *
- * RÈGLES DE RENDU (proposition D-07, à confirmer par Codex et Alex)
+ * RÈGLES DE RENDU (décision D-07, appliquées par le worker)
  * 1. La vidéo source est la base ; son audio est conservé (réencodé en AAC si
  *    nécessaire). L'audio des B-rolls n'est jamais utilisé.
  * 2. Pendant [startSeconds, endSeconds[, l'image affichée est celle du B-roll, lu

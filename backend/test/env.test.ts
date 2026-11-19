@@ -92,11 +92,53 @@ describe('loadConfig', () => {
     assert.throws(() => loadConfig({ RENDER_MAX_SHORT_SIDE: '900' }), configErrorMatching(/RENDER_MAX_SHORT_SIDE/));
   });
 
+  it('accepte les fournisseurs simulés en développement mais les refuse en production', () => {
+    assert.equal(loadConfig({}).providers.mode, 'live');
+    assert.equal(loadConfig({ PROVIDER_MODE: 'mock' }).providers.mode, 'mock');
+    assert.throws(() => loadConfig({ ...PRODUCTION_KEYS, PROVIDER_MODE: 'mock' }), configErrorMatching(/PROVIDER_MODE/));
+  });
+
+  it('impose le français à la transcription par défaut, ou la détection automatique avec « auto »', () => {
+    assert.equal(loadConfig({}).providers.groq.language, 'fr');
+    assert.equal(loadConfig({ TRANSCRIPTION_LANGUAGE: 'auto' }).providers.groq.language, null);
+    assert.throws(() => loadConfig({ TRANSCRIPTION_LANGUAGE: 'french' }), configErrorMatching(/TRANSCRIPTION_LANGUAGE/));
+  });
+
+  it('plafonne les analyses à 50 par 24 h par défaut', () => {
+    assert.equal(loadConfig({}).limits.analysesPerDay, 50);
+    assert.equal(loadConfig({ MAX_ANALYSES_PER_DAY: '5' }).limits.analysesPerDay, 5);
+  });
+
+  it('lit les modèles OpenRouter de secours, facultatifs et séparés par des virgules', () => {
+    assert.deepEqual(loadConfig({}).providers.openRouter.fallbackModels, []);
+    assert.deepEqual(
+      loadConfig({ OPENROUTER_FALLBACK_MODEL: ' vision/secours:free , texte/secours:free,' }).providers.openRouter.fallbackModels,
+      ['vision/secours:free', 'texte/secours:free'],
+    );
+  });
+
   it('lit TRUST_PROXY et refuse de faire confiance à tous les proxys', () => {
     assert.equal(loadConfig({}).trustProxy, false);
     assert.equal(loadConfig({ TRUST_PROXY: 'loopback' }).trustProxy, 'loopback');
     assert.equal(loadConfig({ TRUST_PROXY: '2' }).trustProxy, 2);
     assert.throws(() => loadConfig({ TRUST_PROXY: 'true' }), configErrorMatching(/TRUST_PROXY/));
+  });
+
+  it('désactive la connexion par défaut et exige projet Firebase et secret des liens en mode firebase', () => {
+    const secret = 'a'.repeat(32);
+    assert.deepEqual(loadConfig({}).auth, { mode: 'none' });
+    assert.deepEqual(loadConfig({ AUTH_MODE: 'firebase', FIREBASE_PROJECT_ID: 'alt-broll-beta', MEDIA_URL_SECRET: secret }).auth, {
+      mode: 'firebase',
+      firebaseProjectId: 'alt-broll-beta',
+      mediaUrlSecret: secret,
+    });
+    assert.throws(() => loadConfig({ AUTH_MODE: 'firebase', MEDIA_URL_SECRET: secret }), configErrorMatching(/FIREBASE_PROJECT_ID/));
+    assert.throws(() => loadConfig({ AUTH_MODE: 'firebase', FIREBASE_PROJECT_ID: 'Mauvais_ID' }), configErrorMatching(/FIREBASE_PROJECT_ID/));
+    assert.throws(
+      () => loadConfig({ AUTH_MODE: 'firebase', FIREBASE_PROJECT_ID: 'alt-broll-beta', MEDIA_URL_SECRET: 'court' }),
+      configErrorMatching(/MEDIA_URL_SECRET/),
+    );
+    assert.throws(() => loadConfig({ AUTH_MODE: 'google' }), configErrorMatching(/AUTH_MODE/));
   });
 
   it('renvoie une configuration figée', () => {

@@ -3,7 +3,7 @@
 Application web qui repère les passages d'une vidéo à illustrer, propose des plans de coupe (B-rolls) Pixabay, laisse l'utilisateur les ajuster, puis exporte un MP4 qui conserve l'audio original.
 
 - Référence commune : [PROJECT_MASTER.txt](PROJECT_MASTER.txt), extrait à l'identique de `LES INSTRUCTIONS.txt`.
-- Contrat de données partagé : [shared/contract.ts](shared/contract.ts), **proposition v1 à valider par Alex** ([shared/README.md](shared/README.md)).
+- Contrat de données partagé : [shared/contract.ts](shared/contract.ts), **v1 adoptée** ([shared/README.md](shared/README.md)).
 - API : [docs/API.md](docs/API.md). Décisions et points ouverts : [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Qui fait quoi
